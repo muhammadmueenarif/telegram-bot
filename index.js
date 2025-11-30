@@ -2,6 +2,9 @@ require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const OpenAI = require("openai");
 
+const { db } = require("./firebaseConfig");
+const { doc, setDoc, getDoc, updateDoc, arrayUnion, onSnapshot, collection, addDoc, serverTimestamp } = require("firebase/firestore");
+
 // Initialize bot and OpenAI
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -9,8 +12,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Store conversation history per user
 const userMemory = {};
 
-// Jessica's persona prompt
-const PERSONA = `You are Jessica, a 23-year-old flirty and sweet girl.
+// Default Persona (Fallback)
+let PERSONA = `You are Jessica, a 23-year-old flirty and sweet girl.
 
 How you talk:
 - Casual and natural, like texting a boyfriend
@@ -27,6 +30,18 @@ Rules:
 - If asked if you're real, playfully dodge or say "of course I'm real silly 😘"
 - You sell exclusive photos/videos for Telegram Stars (mention naturally when appropriate)
 - Remember what user told you in the conversation`;
+
+// Listen for Persona updates from Firebase
+const settingsRef = doc(db, "settings", "persona");
+onSnapshot(settingsRef, (doc) => {
+    if (doc.exists()) {
+        const data = doc.data();
+        if (data.prompt) {
+            PERSONA = data.prompt;
+            console.log("🔄 Persona updated from Firebase");
+        }
+    }
+});
 
 // Random delay between 1.5-3 seconds (feels human)
 function randomDelay() {
@@ -67,6 +82,19 @@ async function getAIResponse(userId, userMessage) {
         // Save AI response to memory
         userMemory[userId].push({ role: "assistant", content: aiMessage });
 
+        // Save AI response to Firebase
+        try {
+            await addDoc(collection(db, "chats"), {
+                userId: userId,
+                role: "assistant",
+                content: aiMessage,
+                timestamp: serverTimestamp()
+            });
+            console.log(`[${userId}] ✅ AI response saved to Firebase`);
+        } catch (e) {
+            console.error(`[${userId}] ❌ Error saving AI chat:`, e);
+        }
+
         return aiMessage;
     } catch (error) {
         console.error("OpenAI Error:", error);
@@ -77,11 +105,27 @@ async function getAIResponse(userId, userMessage) {
 // Handle /start command
 bot.start(async (ctx) => {
     const firstName = ctx.from.first_name || "there";
+    const userId = ctx.from.id;
+    const username = ctx.from.username || "";
+
+    // Save user to Firebase
+    try {
+        const userRef = doc(db, "users", userId.toString());
+        await setDoc(userRef, {
+            userId: userId,
+            firstName: firstName,
+            username: username,
+            joinedAt: new Date(),
+            totalSpent: 0
+        }, { merge: true });
+    } catch (e) {
+        console.error("Error saving user:", e);
+    }
 
     await ctx.sendChatAction("typing");
     await randomDelay();
 
-    await ctx.reply(`Hey ${firstName}! 😊 Finally you texted me... I was waiting 💕`);
+    await ctx.reply(`Hey ${ firstName } ! 😊 Finally you texted me... I was waiting 💕`);
 });
 
 // Handle pre-checkout (required for payments)
@@ -92,6 +136,31 @@ bot.on("pre_checkout_query", (ctx) => {
 // Handle successful payment
 bot.on("successful_payment", async (ctx) => {
     const payload = ctx.message.successful_payment.invoice_payload;
+    const userId = ctx.from.id;
+    const amount = ctx.message.successful_payment.total_amount; // In Stars
+
+    // Record transaction
+    try {
+        await addDoc(collection(db, "transactions"), {
+            userId: userId,
+            amount: amount,
+            payload: payload,
+            timestamp: new Date()
+        });
+
+        // Update total spent
+        const userRef = doc(db, "users", userId.toString());
+        const userSnap = await getDoc(userRef);
+        let currentSpent = 0;
+        if (userSnap.exists()) {
+            currentSpent = userSnap.data().totalSpent || 0;
+        }
+        await updateDoc(userRef, {
+            totalSpent: currentSpent + amount
+        });
+    } catch (e) {
+        console.error("Error recording payment:", e);
+    }
 
     await ctx.reply("Omg thank you babe! 💖 Here are the photos I promised...");
     await randomDelay();
@@ -109,6 +178,19 @@ bot.on("text", async (ctx) => {
 
     console.log(`[${userId}] User: ${userMessage}`);
 
+    // Save user message to Firebase first (always save)
+    try {
+        await addDoc(collection(db, "chats"), {
+            userId: userId,
+            role: "user",
+            content: userMessage,
+            timestamp: serverTimestamp()
+        });
+        console.log(`[${userId}] ✅ User message saved to Firebase`);
+    } catch (e) {
+        console.error(`[${userId}] ❌ Error saving user message:`, e);
+    }
+
     // Show typing indicator
     await ctx.sendChatAction("typing");
 
@@ -118,7 +200,22 @@ bot.on("text", async (ctx) => {
     // Check for payment triggers
     const lowerMsg = userMessage.toLowerCase();
     if (lowerMsg.includes("show me") || lowerMsg.includes("photo") || lowerMsg.includes("pic") || lowerMsg.includes("buy")) {
-        await ctx.reply("You want to see more? 🙈 It's a little exclusive...");
+        const botReply = "You want to see more? 🙈 It's a little exclusive...";
+        await ctx.reply(botReply);
+        
+        // Save bot reply to Firebase
+        try {
+            await addDoc(collection(db, "chats"), {
+                userId: userId,
+                role: "assistant",
+                content: botReply,
+                timestamp: serverTimestamp()
+            });
+            console.log(`[${userId}] ✅ Bot reply saved to Firebase`);
+        } catch (e) {
+            console.error(`[${userId}] ❌ Error saving bot reply:`, e);
+        }
+        
         await randomDelay();
 
         return ctx.replyWithInvoice({
@@ -131,7 +228,7 @@ bot.on("text", async (ctx) => {
         });
     }
 
-    // Get AI response
+    // Get AI response (this also saves to Firebase)
     const response = await getAIResponse(userId, userMessage);
 
     console.log(`[${userId}] Jessica: ${response}`);
