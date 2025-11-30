@@ -1,4 +1,4 @@
-require("dotenv").config({ path: __dirname + '/.env' });
+require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const OpenAI = require("openai");
 
