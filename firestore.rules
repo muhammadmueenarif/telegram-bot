@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - read/write for authenticated admins only
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Conversations - users can only read/write their own
+    match /conversations/{userId}/messages/{messageId} {
+      allow read, write: if request.auth != null && request.auth.token.userId == userId;
+    }
+    
+    // Content - public read, admin write
+    match /content/{contentId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Invoices - users can read their own, admin can read/write all
+    match /invoices/{invoiceId} {
+      allow read: if request.auth != null && (request.auth.token.userId == resource.data.userId || request.auth.token.admin == true);
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Transactions - admin only
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Social memories - public read, admin write
+    match /social_memories/{memoryId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Base videos - admin only
+    match /base_videos/{videoId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Video queue - admin only
+    match /video_queue/{jobId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Config - admin only
+    match /config/{configId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}
+
