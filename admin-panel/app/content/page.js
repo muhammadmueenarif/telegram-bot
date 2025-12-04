@@ -13,6 +13,7 @@ export default function ContentManagement() {
     const [uploading, setUploading] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
+        description: "",
         category: "",
         price: "",
         type: "photo",
@@ -68,6 +69,7 @@ export default function ContentManagement() {
 
             const contentData = {
                 title: formData.title,
+                description: formData.description,
                 category: formData.category,
                 price: formData.isFree ? 0 : parseInt(formData.price) || 0,
                 isFree: formData.isFree,
@@ -89,7 +91,7 @@ export default function ContentManagement() {
             }
 
             setShowModal(false);
-            setFormData({ title: "", category: "", price: "", type: "photo", file: null, isFree: false });
+            setFormData({ title: "", description: "", category: "", price: "", type: "photo", file: null, isFree: false });
             setEditingItem(null);
             loadContent();
         } catch (error) {
@@ -128,6 +130,7 @@ export default function ContentManagement() {
         setEditingItem(item);
         setFormData({
             title: item.title || "",
+            description: item.description || "",
             category: item.category || "",
             price: item.price?.toString() || "",
             type: item.type || "photo",
@@ -151,7 +154,7 @@ export default function ContentManagement() {
                 <button
                     onClick={() => {
                         setEditingItem(null);
-                        setFormData({ title: "", category: "", price: "", type: "photo", file: null, isFree: false });
+                        setFormData({ title: "", description: "", category: "", price: "", type: "photo", file: null, isFree: false });
                         setShowModal(true);
                     }}
                     className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
@@ -222,13 +225,16 @@ export default function ContentManagement() {
                             </div>
                             <div className="p-4">
                                 <h3 className="font-semibold text-gray-900 mb-1">{item.title || "Untitled"}</h3>
+                                {item.description && (
+                                    <p className="text-sm text-gray-600 mb-2 line-clamp-2">{item.description}</p>
+                                )}
                                 <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                                    <span className="px-2 py-1 bg-gray-100 rounded">{item.category || "Uncategorized"}</span>
+                                    <span className="px-2 py-1 bg-gray-100 rounded text-xs">{item.category || "Uncategorized"}</span>
                                     <div className="flex items-center gap-2">
                                         {item.isFree ? (
                                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">FREE</span>
                                         ) : (
-                                            <span className="font-bold" style={{ color: '#0088CC' }}>{item.price || 0} Stars</span>
+                                            <span className="font-bold text-sm" style={{ color: '#0088CC' }}>{item.price || 0} ⭐</span>
                                         )}
                                     </div>
                                 </div>
@@ -281,21 +287,41 @@ export default function ContentManagement() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Title
+                                    Title <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
-                                    onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+                                    style={{ focusOutlineColor: '#0088CC' }}
+                                    placeholder="e.g., Beach Sunset Photo"
                                     required
                                 />
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Category
+                                    Description <span className="text-red-500">*</span>
+                                    <span className="text-xs text-gray-500 ml-2">(Help AI understand this content)</span>
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none"
+                                    style={{ focusOutlineColor: '#0088CC' }}
+                                    rows="3"
+                                    placeholder="e.g., Beautiful beach sunset photo, perfect for beach lovers, tropical vibes, ocean view, golden hour"
+                                    required
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    💡 Be descriptive! Include keywords like: beach, workout, lingerie, custom, exclusive, etc.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Category <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     value={formData.category}

@@ -64,29 +64,31 @@ class PaymentHandler {
             await ctx.reply(`Omg thank you so much babe! 💖✨\n\nYou got ${packageData.stars} Stars! Here's what's included...`);
             await randomDelay();
 
-            // Get available content from Firebase
-            const allContent = await FirebaseService.getAllContent();
-            const sentContentUrls = await FirebaseService.getUserSentContentUrls(userId);
-
-            // Filter for content that hasn't been sent yet
-            const availableContent = allContent.filter(c => !sentContentUrls.has(c.fileUrl));
-
-            // Determine how many pieces of content to send based on package
-            let contentCount = 1;
-            if (packageData.stars >= 100) contentCount = 5;
-            else if (packageData.stars >= 50) contentCount = 3;
-            else if (packageData.stars >= 25) contentCount = 2;
-
-            console.log(`[${userId}] 📤 Sending ${contentCount} pieces of content`);
-
-            // Send content
-            const contentToSend = availableContent.slice(0, contentCount);
-
-            if (contentToSend.length === 0) {
+            // Get the specific content items assigned to this package
+            if (!packageData.contentIds || packageData.contentIds.length === 0) {
+                console.log(`[${userId}] ⚠️ Package has no content assigned, sending fallback message`);
                 await ctx.reply("I'll create some exclusive content just for you babe! 😘 Check back soon!");
                 return;
             }
 
+            // Get all content items for this package
+            const contentToSend = [];
+            for (const contentId of packageData.contentIds) {
+                const content = await FirebaseService.getContentById(contentId);
+                if (content) {
+                    contentToSend.push(content);
+                }
+            }
+
+            if (contentToSend.length === 0) {
+                console.log(`[${userId}] ⚠️ No valid content found for package`);
+                await ctx.reply("I'll create some exclusive content just for you babe! 😘 Check back soon!");
+                return;
+            }
+
+            console.log(`[${userId}] 📤 Sending ${contentToSend.length} pieces of content from package`);
+
+            // Send each content item
             for (const content of contentToSend) {
                 await randomDelay();
 
@@ -98,7 +100,8 @@ class PaymentHandler {
                     await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent video", {
                         fileUrl: content.fileUrl,
                         mediaType: "video",
-                        type: "video"
+                        type: "video",
+                        contentId: content.id
                     });
                 } else {
                     await ctx.replyWithPhoto(content.fileUrl, {
@@ -108,7 +111,8 @@ class PaymentHandler {
                     await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent photo", {
                         fileUrl: content.fileUrl,
                         mediaType: "photo",
-                        type: "photo"
+                        type: "photo",
+                        contentId: content.id
                     });
                 }
             }

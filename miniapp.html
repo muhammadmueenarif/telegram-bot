@@ -155,8 +155,6 @@
             userName: user.first_name,
             packageId: selectedPackage.id,
             stars: selectedPackage.stars,
-            price: selectedPackage.price,
-            currency: selectedPackage.currency,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'pending'
           };
@@ -210,17 +208,12 @@
       const displayPackages = showAll ? packages : packages.slice(0, 4);
 
       container.innerHTML = displayPackages.map(pkg => `
-        <div class="package-card rounded-2xl p-4 flex items-center justify-between cursor-pointer"
+        <div class="package-card rounded-2xl p-4 flex items-center gap-3 cursor-pointer"
              onclick="selectPackage('${pkg.id}')">
-          <div class="flex items-center gap-3">
-            <div class="text-2xl">⭐</div>
-            <div>
-              <div class="font-bold text-lg">${pkg.stars.toLocaleString()} Stars</div>
-              ${pkg.includes ? `<div class="text-gray-400 text-sm">${pkg.includes}</div>` : ''}
-            </div>
-          </div>
-          <div class="text-right">
-            <div class="font-bold text-lg">${pkg.currency}${pkg.price.toFixed(2)}</div>
+          <div class="text-3xl">⭐</div>
+          <div class="flex-1">
+            <div class="font-bold text-xl">${pkg.stars.toLocaleString()} Stars</div>
+            ${pkg.includes ? `<div class="text-gray-400 text-sm">${pkg.includes}</div>` : ''}
           </div>
         </div>
       `).join('');
@@ -257,7 +250,7 @@
       event.target.closest('.package-card').classList.add('ring-4', 'ring-yellow-400');
 
       // Show and update main button
-      tg.MainButton.setText(`Buy ${selectedPackage.stars} Stars for ${selectedPackage.currency}${selectedPackage.price}`);
+      tg.MainButton.setText(`Buy ${selectedPackage.stars} Stars`);
       tg.MainButton.show();
 
       console.log('Package selected:', selectedPackage);

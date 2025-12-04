@@ -24,8 +24,7 @@ export default function AdminLayout({ children }) {
         { name: "Packages", href: "/packages", icon: Star },
         { name: "Persona", href: "/persona", icon: Settings },
         { name: "Users", href: "/users", icon: Users },
-        { name: "Chats", href: "/chats", icon: MessageSquare },
-        { name: "Custom Videos", href: "/custom-videos", icon: Video },
+        { name: "Chats", href: "/chats", icon: MessageSquare }
     ];
 
     return (
