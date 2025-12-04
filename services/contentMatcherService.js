@@ -55,18 +55,20 @@ ${contentDescriptions.map((c, i) => `${i + 1}. [${c.id}] ${c.title} (${c.type})
 
 MATCHING RULES:
 1. Match based on keywords in descriptions (beach, workout, lingerie, custom, etc.)
-2. If user request is vague ("show me something", "send pics"), pick 1-2 best items
+2. If user request is vague ("show me something", "send pics"), pick 1 best item
 3. If user is specific ("beach photos"), only match items with "beach" in description
-4. Return 1-3 content IDs maximum
+4. Return ONLY 1 content ID (always return maximum 1 item)
 5. If NO good match found, return empty array
 
 Respond in JSON format ONLY:
 {
   "matched": true/false,
-  "contentIds": ["id1", "id2"],
-  "reasoning": "Why these items match the user request",
+  "contentIds": ["id1"],
+  "reasoning": "Why this item matches the user request",
   "confidence": 0.95
-}`;
+}
+
+IMPORTANT: Return ONLY 1 content ID in the array, not multiple!`;
 
             const response = await this.openai.chat.completions.create({
                 model: "gpt-4o-mini",

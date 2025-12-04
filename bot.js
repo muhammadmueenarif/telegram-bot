@@ -35,6 +35,42 @@ class Bot {
         // Text messages
         this.bot.on("text", (ctx) => this.textHandler.handleTextMessage(ctx));
 
+        // Handle button clicks (callback queries)
+        this.bot.on("callback_query", async (ctx) => {
+            const data = ctx.callbackQuery.data;
+            const userId = ctx.from.id;
+
+            console.log(`[${userId}] Button clicked: ${data}`);
+
+            try {
+                // Get user's sent content history
+                const FirebaseService = require("./services/firebaseService");
+                const sentContentUrls = await FirebaseService.getUserSentContentUrls(userId);
+
+                if (data.startsWith("content_free_")) {
+                    // User selected Free Content
+                    await ctx.answerCbQuery();
+                    await this.textHandler.handleFreeContentSelection(ctx, userId, sentContentUrls);
+                } else if (data.startsWith("content_paid_")) {
+                    // User selected Paid Packages
+                    await ctx.answerCbQuery();
+                    await ctx.editMessageText("Let me show you my packages babe! 💕");
+                    await this.textHandler.handlePaidContentRequest(ctx, userId, "");
+                } else if (data.startsWith("type_photo_")) {
+                    // User selected Photo
+                    await ctx.answerCbQuery();
+                    await this.textHandler.handleTypeSelection(ctx, userId, "photo", sentContentUrls);
+                } else if (data.startsWith("type_video_")) {
+                    // User selected Video
+                    await ctx.answerCbQuery();
+                    await this.textHandler.handleTypeSelection(ctx, userId, "video", sentContentUrls);
+                }
+            } catch (error) {
+                console.error(`[${userId}] Error handling callback query:`, error);
+                await ctx.answerCbQuery("Something went wrong... try again! 😅");
+            }
+        });
+
         // Handle mini app data (when user selects package in mini app)
         // Telegram sends this as a normal message with `web_app_data` field
         this.bot.on("message", async (ctx) => {

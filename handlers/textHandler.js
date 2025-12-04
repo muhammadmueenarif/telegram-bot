@@ -77,12 +77,14 @@ class TextHandler {
     }
 
     async handleGreeting(ctx, userId, userMessage) {
-        // Add message to memory
+        // Check if message is already in memory
         const lastMessage = this.memoryService.userMemory[userId][this.memoryService.userMemory[userId].length - 1];
         const isDuplicate = lastMessage && lastMessage.content === userMessage && lastMessage.role === "user";
 
         if (!isDuplicate) {
             this.memoryService.addMessage(userId, "user", userMessage);
+        } else {
+            console.log(`[${userId}] ⚠️ Duplicate message detected, skipping memory add`);
         }
 
         const persona = getPersona();
@@ -93,6 +95,17 @@ class TextHandler {
 
         console.log(`[${userId}] Jessica: ${response}`);
 
+        // Check if we just sent this exact response
+        const lastAssistantMessage = this.memoryService.userMemory[userId]
+            .slice()
+            .reverse()
+            .find(m => m.role === "assistant");
+
+        if (lastAssistantMessage && lastAssistantMessage.content === response) {
+            console.log(`[${userId}] ⚠️ Duplicate response detected, not sending again`);
+            return;
+        }
+
         this.memoryService.addMessage(userId, "assistant", response);
         await FirebaseService.saveChatMessage(userId, "assistant", response);
         await ctx.reply(response);
@@ -100,65 +113,95 @@ class TextHandler {
 
     async handleFreeContentRequest(ctx, userId, userMessage, sentContentUrls) {
         try {
+            // Ask user: Free or Paid?
+            const botReply = "What would you like babe? 💕";
+            await ctx.reply(botReply, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🆓 Free Content", callback_data: `content_free_${userId}` },
+                            { text: "💎 Paid Packages", callback_data: `content_paid_${userId}` }
+                        ]
+                    ]
+                }
+            });
+            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+
+        } catch (error) {
+            console.error(`[${userId}] Error handling free content request:`, error);
+            await ctx.reply("Sorry babe, something went wrong... try again? 😅");
+        }
+    }
+
+    async handleFreeContentSelection(ctx, userId, sentContentUrls) {
+        try {
             // Get all content from Firebase
             const allContent = await FirebaseService.getAllContent();
 
             // Filter for free content only
             const freeContent = allContent.filter(c => c.isFree === true);
+            const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
 
-            if (freeContent.length === 0) {
-                // No free content, redirect to packages
-                await this.handlePaidContentRequest(ctx, userId, userMessage);
-                return;
-            }
-
-            // STEP 2: Use Content Matcher AI to find best matching content
-            const matchResult = await this.contentMatcher.matchContent(
-                userMessage,
-                freeContent,
-                true // free only
-            );
-
-            if (!matchResult.matched || matchResult.contentIds.length === 0) {
-                // No good match, send random free content
-                const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
-
-                if (unsentFreeContent.length > 0) {
-                    const randomContent = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
-                    await this.sendContent(ctx, userId, randomContent, "Here's something for you babe! 😍💕");
-                } else {
-                    // All free content sent, suggest packages
-                    await this.handlePaidContentRequest(ctx, userId, userMessage);
-                }
-                return;
-            }
-
-            // Get matched content items
-            const contentToSend = this.contentMatcher.getContentByIds(matchResult.contentIds, freeContent);
-
-            // Filter out already sent content
-            const unsentContent = contentToSend.filter(c => !sentContentUrls.has(c.fileUrl));
-
-            if (unsentContent.length === 0) {
-                // Already sent all matched content, suggest packages
-                const botReply = "You've already seen all my free content babe! 💕 Want to see my exclusive stuff? Check out my packages! 😘";
-                await ctx.reply(botReply);
-                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+            if (unsentFreeContent.length === 0) {
+                // All free content sent, suggest packages
+                await ctx.editMessageText("You've already seen all my free content babe! 💕 Want to see my exclusive stuff? 😘");
                 await this.openMiniApp(ctx, userId);
                 return;
             }
 
-            // Send the matched content
-            const introMessage = `Here's what you asked for babe! 💕`;
-            await ctx.reply(introMessage);
-            await FirebaseService.saveChatMessage(userId, "assistant", introMessage);
+            // Ask: Photo or Video?
+            const freePhotos = unsentFreeContent.filter(c => c.type === 'photo');
+            const freeVideos = unsentFreeContent.filter(c => c.type === 'video');
 
-            for (const content of unsentContent) {
-                await this.sendContent(ctx, userId, content);
+            const buttons = [];
+            if (freePhotos.length > 0) {
+                buttons.push({ text: "📸 Photo", callback_data: `type_photo_${userId}` });
+            }
+            if (freeVideos.length > 0) {
+                buttons.push({ text: "🎥 Video", callback_data: `type_video_${userId}` });
             }
 
+            if (buttons.length === 0) {
+                await ctx.editMessageText("No free content available babe! Check out my packages! 💕");
+                await this.openMiniApp(ctx, userId);
+                return;
+            }
+
+            await ctx.editMessageText("What type do you want? 😘", {
+                reply_markup: {
+                    inline_keyboard: [buttons]
+                }
+            });
+
         } catch (error) {
-            console.error(`[${userId}] Error handling free content request:`, error);
+            console.error(`[${userId}] Error handling free content selection:`, error);
+            await ctx.reply("Sorry babe, something went wrong... try again? 😅");
+        }
+    }
+
+    async handleTypeSelection(ctx, userId, type, sentContentUrls) {
+        try {
+            // Get all content from Firebase
+            const allContent = await FirebaseService.getAllContent();
+
+            // Filter for free content of selected type
+            const freeContent = allContent.filter(c => c.isFree === true && c.type === type);
+            const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
+
+            if (unsentFreeContent.length === 0) {
+                await ctx.editMessageText(`No free ${type}s left babe! 💕 Want to see my paid packages? 😘`);
+                await this.openMiniApp(ctx, userId);
+                return;
+            }
+
+            // Send ONLY 1 random item
+            const randomContent = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+
+            await ctx.editMessageText("Here you go babe! 😍💕");
+            await this.sendContent(ctx, userId, randomContent);
+
+        } catch (error) {
+            console.error(`[${userId}] Error handling type selection:`, error);
             await ctx.reply("Sorry babe, something went wrong... try again? 😅");
         }
     }
@@ -221,12 +264,14 @@ class TextHandler {
     }
 
     async handleAIResponse(ctx, userId, userMessage) {
-        // Standard chat response using OpenAI
+        // Check if message is already in memory
         const lastMessage = this.memoryService.userMemory[userId][this.memoryService.userMemory[userId].length - 1];
         const isDuplicate = lastMessage && lastMessage.content === userMessage && lastMessage.role === "user";
 
         if (!isDuplicate) {
             this.memoryService.addMessage(userId, "user", userMessage);
+        } else {
+            console.log(`[${userId}] ⚠️ Duplicate message detected, skipping memory add`);
         }
 
         const persona = getPersona();
@@ -237,6 +282,17 @@ class TextHandler {
         const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
 
         console.log(`[${userId}] Jessica: ${response}`);
+
+        // Check if we just sent this exact response
+        const lastAssistantMessage = this.memoryService.userMemory[userId]
+            .slice()
+            .reverse()
+            .find(m => m.role === "assistant");
+
+        if (lastAssistantMessage && lastAssistantMessage.content === response) {
+            console.log(`[${userId}] ⚠️ Duplicate response detected, not sending again`);
+            return;
+        }
 
         this.memoryService.addMessage(userId, "assistant", response);
         await FirebaseService.saveChatMessage(userId, "assistant", response);

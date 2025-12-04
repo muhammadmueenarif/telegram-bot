@@ -3,21 +3,84 @@
 ✅ Content Matcher initialized
 🔄 Attempting to start bot... (Attempt 1/5)
 🔄 Persona updated from Firebase
-❌ Error starting bot (Attempt 1/5): 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-⏳ Retrying in 5 seconds...
-🔄 Attempting to start bot... (Attempt 2/5)
-❌ Error starting bot (Attempt 2/5): 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-⏳ Retrying in 5 seconds...
-🔄 Attempting to start bot... (Attempt 3/5)
-❌ Error starting bot (Attempt 3/5): 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-⏳ Retrying in 5 seconds...
-🔄 Attempting to start bot... (Attempt 4/5)
-❌ Error starting bot (Attempt 4/5): 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-⏳ Retrying in 5 seconds...
-🔄 Attempting to start bot... (Attempt 5/5)
-❌ Error starting bot (Attempt 5/5): 409: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-❌ Failed to start bot after multiple attempts. Please check:
-   1. Your internet connection
-   2. BOT_TOKEN in .env file is correct
-   3. Telegram API is accessible from your network
-   4. Firewall/proxy settings
+[1528060909] User: How are you
+[1528060909] ✅ User message saved to Firebase
+[1528060909] ✅ Loaded 1 messages from Firebase, keeping 1 most recent in memory
+🎯 Intent Analysis: {
+  action: 'simple_chat',
+  reasoning: 'The user is engaging in casual conversation by asking how I am, which fits the criteria for normal flirty conversation.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: simple_chat
+[1528060909] ⚠️ Duplicate message detected, skipping memory add
+[1528060909] 📊 Using 1 messages for context
+[1528060909] Jessica: Hey cutie 😊 I'm doing great, thanks for asking! How about you? What’s up?💕
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: Hi how are you
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'greeting',
+  reasoning: "The user is greeting me with 'Hi how are you', which falls under the greeting category.",
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: greeting
+[1528060909] Jessica: Hey there, sweetie! I'm good, just enjoying the day. How about you? Anything fun going on? 😘
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: Yes can you send me your pic
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'request_free_content',
+  reasoning: 'The user is asking for a picture, and since they have not received any free content before, this request is treated as a request for free content.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: request_free_content
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] Button clicked: content_free_1528060909
+[1528060909] Button clicked: type_photo_1528060909
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: Looking great
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'simple_chat',
+  reasoning: 'The user is complimenting Jessica, which is a cue for a normal flirty conversation without any specific requests.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: simple_chat
+[1528060909] 📊 Using 5 messages for context
+[1528060909] Jessica: Aww, thank you, babe! You're making me blush 😊 What are you up to today? 💕
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: Can you send me one video 😊
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'request_paid_content',
+  reasoning: 'The user has previously received free content and is now asking for a video, which suggests they may be looking for paid content this time.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: request_paid_content
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: I need free
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'request_free_content',
+  reasoning: 'The user is asking for free content, and since this is their first request for content, it aligns with the intent to provide free content.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: request_free_content
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] Button clicked: content_free_1528060909
+[1528060909] Button clicked: type_video_1528060909
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] User: Great.. now i need something special
+[1528060909] ✅ User message saved to Firebase
+🎯 Intent Analysis: {
+  action: 'request_paid_content',
+  reasoning: 'The user is asking for something special, which suggests they are looking for exclusive or premium content, especially since they have received free content before.',
+  confidence: 0.95
+}
+[1528060909] 🎯 Detected intent: request_paid_content
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] ✅ Bot reply saved to Firebase
+📦 New package request from user 1528060909
+[1528060909] ✅ Bot reply saved to Firebase
+[1528060909] 💳 Invoice sent: 100 Stars
