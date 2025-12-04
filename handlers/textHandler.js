@@ -68,6 +68,21 @@ class TextHandler {
                 await this.handlePaidContentRequest(ctx, userId, userMessage);
                 break;
 
+            case "select_free":
+                await this.handleFreeContentSelection(ctx, userId, sentContentUrls);
+                break;
+
+            case "select_paid":
+                await this.handlePaidContentRequest(ctx, userId, userMessage);
+                break;
+
+            case "select_photo":
+                await this.handleTypeSelection(ctx, userId, "photo", sentContentUrls);
+                break;
+
+            case "select_video":
+                await this.handleTypeSelection(ctx, userId, "video", sentContentUrls);
+                break;
 
             case "simple_chat":
             default:
@@ -113,18 +128,9 @@ class TextHandler {
 
     async handleFreeContentRequest(ctx, userId, userMessage, sentContentUrls) {
         try {
-            // Ask user: Free or Paid?
-            const botReply = "What would you like babe? 💕";
-            await ctx.reply(botReply, {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "🆓 Free Content", callback_data: `content_free_${userId}` },
-                            { text: "💎 Paid Packages", callback_data: `content_paid_${userId}` }
-                        ]
-                    ]
-                }
-            });
+            // Ask user: Special (paid) or Just for fun (free)?
+            const botReply = "Do you want something special or just for fun babe? 💕";
+            await ctx.reply(botReply);
             await FirebaseService.saveChatMessage(userId, "assistant", botReply);
 
         } catch (error) {
@@ -144,7 +150,9 @@ class TextHandler {
 
             if (unsentFreeContent.length === 0) {
                 // All free content sent, suggest packages
-                await ctx.editMessageText("You've already seen all my free content babe! 💕 Want to see my exclusive stuff? 😘");
+                const botReply = "You've already seen all my free content babe! 💕 Want to see my exclusive stuff? 😘";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
                 await this.openMiniApp(ctx, userId);
                 return;
             }
@@ -153,25 +161,21 @@ class TextHandler {
             const freePhotos = unsentFreeContent.filter(c => c.type === 'photo');
             const freeVideos = unsentFreeContent.filter(c => c.type === 'video');
 
-            const buttons = [];
-            if (freePhotos.length > 0) {
-                buttons.push({ text: "📸 Photo", callback_data: `type_photo_${userId}` });
-            }
-            if (freeVideos.length > 0) {
-                buttons.push({ text: "🎥 Video", callback_data: `type_video_${userId}` });
-            }
+            let availableTypes = [];
+            if (freePhotos.length > 0) availableTypes.push("photo");
+            if (freeVideos.length > 0) availableTypes.push("video");
 
-            if (buttons.length === 0) {
-                await ctx.editMessageText("No free content available babe! Check out my packages! 💕");
+            if (availableTypes.length === 0) {
+                const botReply = "No free content available babe! Check out my packages! 💕";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
                 await this.openMiniApp(ctx, userId);
                 return;
             }
 
-            await ctx.editMessageText("What type do you want? 😘", {
-                reply_markup: {
-                    inline_keyboard: [buttons]
-                }
-            });
+            const botReply = "Do you want a video or pic babe? 😘";
+            await ctx.reply(botReply);
+            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
 
         } catch (error) {
             console.error(`[${userId}] Error handling free content selection:`, error);
@@ -189,7 +193,9 @@ class TextHandler {
             const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
 
             if (unsentFreeContent.length === 0) {
-                await ctx.editMessageText(`No free ${type}s left babe! 💕 Want to see my paid packages? 😘`);
+                const botReply = `No free ${type}s left babe! 💕 Want to see my paid packages? 😘`;
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
                 await this.openMiniApp(ctx, userId);
                 return;
             }
@@ -197,7 +203,9 @@ class TextHandler {
             // Send ONLY 1 random item
             const randomContent = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
 
-            await ctx.editMessageText("Here you go babe! 😍💕");
+            const botReply = "Here you go babe! 😍💕";
+            await ctx.reply(botReply);
+            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
             await this.sendContent(ctx, userId, randomContent);
 
         } catch (error) {

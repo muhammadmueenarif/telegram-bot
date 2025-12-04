@@ -30,9 +30,17 @@ AVAILABLE ACTIONS:
 3. "request_paid_content" - User explicitly wants to buy or mentions paid/premium content
 4. "open_packages" - User wants to see packages or buy Stars
 5. "greeting" - User is greeting (hi, hello, hey, etc.)
+6. "select_free" - User wants free content (says "fun", "free", "just for fun")
+7. "select_paid" - User wants paid content (says "special", "paid", "something special")
+8. "select_photo" - User wants photo (says "photo", "pic", "image", "picture")
+9. "select_video" - User wants video (says "video", "vid")
 
 INTENT DETECTION RULES:
 - Greetings: "hi", "hello", "hey", "what's up" → "greeting"
+- User says "fun" or "just for fun" or "free" → "select_free"
+- User says "special" or "something special" or "paid" → "select_paid"
+- User says "photo" or "pic" or "picture" or "image" → "select_photo"
+- User says "video" or "vid" → "select_video"
 - General content requests: "show me", "send pics", "got photos", "let me see" → "request_free_content"
 - Explicit paid requests: "buy", "purchase", "paid content", "premium", "exclusive", "spend money" → "request_paid_content"
 - Package/Stars mentions: "packages", "stars", "how much", "prices" → "open_packages"
