@@ -1,0 +1,49 @@
+const OpenAI = require("openai");
+const { OPENAI_CONFIG } = require("../utils/constants");
+
+class OpenAIService {
+    constructor(apiKey) {
+        this.openai = new OpenAI({ apiKey });
+        console.log("✅ OpenAI initialized");
+    }
+
+    async getChatCompletion(systemPrompt, messages) {
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: OPENAI_CONFIG.model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    ...messages,
+                ],
+                max_tokens: OPENAI_CONFIG.max_tokens,
+                temperature: OPENAI_CONFIG.temperature,
+            });
+
+            return response.choices[0].message.content;
+        } catch (error) {
+            console.error("OpenAI Error:", error);
+            // If token limit error, try with fewer messages
+            if (error.message && error.message.includes("token")) {
+                console.log("⚠️ Token limit exceeded, trying with fewer messages...");
+                const reducedMessages = messages.slice(-10); // Take last 10 messages only
+                try {
+                    const retryResponse = await this.openai.chat.completions.create({
+                        model: OPENAI_CONFIG.model,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            ...reducedMessages,
+                        ],
+                        max_tokens: OPENAI_CONFIG.max_tokens,
+                        temperature: OPENAI_CONFIG.temperature,
+                    });
+                    return retryResponse.choices[0].message.content;
+                } catch (retryError) {
+                    console.error("Retry also failed:", retryError);
+                }
+            }
+            return "Sorry babe, give me a sec... my phone's being weird 😅";
+        }
+    }
+}
+
+module.exports = OpenAIService;

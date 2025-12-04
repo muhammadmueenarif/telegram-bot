@@ -17,6 +17,7 @@ export default function ContentManagement() {
         price: "",
         type: "photo",
         file: null,
+        isFree: false,
     });
     const [categories, setCategories] = useState(["Spicy", "Lingerie", "Exclusive", "Custom"]);
 
@@ -68,7 +69,8 @@ export default function ContentManagement() {
             const contentData = {
                 title: formData.title,
                 category: formData.category,
-                price: parseInt(formData.price),
+                price: formData.isFree ? 0 : parseInt(formData.price) || 0,
+                isFree: formData.isFree,
                 type: formData.type,
                 fileUrl: fileUrl,
                 createdAt: editingItem?.createdAt || new Date(),
@@ -87,7 +89,7 @@ export default function ContentManagement() {
             }
 
             setShowModal(false);
-            setFormData({ title: "", category: "", price: "", type: "photo", file: null });
+            setFormData({ title: "", category: "", price: "", type: "photo", file: null, isFree: false });
             setEditingItem(null);
             loadContent();
         } catch (error) {
@@ -130,6 +132,7 @@ export default function ContentManagement() {
             price: item.price?.toString() || "",
             type: item.type || "photo",
             file: null,
+            isFree: item.isFree || false,
         });
         setShowModal(true);
     };
@@ -148,10 +151,13 @@ export default function ContentManagement() {
                 <button
                     onClick={() => {
                         setEditingItem(null);
-                        setFormData({ title: "", category: "", price: "", type: "photo", file: null });
+                        setFormData({ title: "", category: "", price: "", type: "photo", file: null, isFree: false });
                         setShowModal(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    className="flex items-center gap-2 px-4 py-2 text-white rounded-lg"
+                    style={{ backgroundColor: '#0088CC' }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#0077BB'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#0088CC'}
                 >
                     <Plus className="w-5 h-5" />
                     Upload Content
@@ -159,12 +165,15 @@ export default function ContentManagement() {
             </div>
 
             {/* Categories */}
-            <div className="bg-white rounded-lg shadow p-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="text-lg font-semibold text-gray-900">Categories</h2>
                     <button
                         onClick={addCategory}
-                        className="text-sm text-indigo-600 hover:text-indigo-700"
+                        className="text-sm"
+                        style={{ color: '#0088CC' }}
+                        onMouseEnter={(e) => e.target.style.color = '#0077BB'}
+                        onMouseLeave={(e) => e.target.style.color = '#0088CC'}
                     >
                         + Add Category
                     </button>
@@ -173,7 +182,8 @@ export default function ContentManagement() {
                     {categories.map((cat) => (
                         <span
                             key={cat}
-                            className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm"
+                            className="px-3 py-1 rounded-full text-sm"
+                            style={{ backgroundColor: '#E6F4F9', color: '#0088CC' }}
                         >
                             {cat}
                         </span>
@@ -187,7 +197,7 @@ export default function ContentManagement() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {content.map((item) => (
-                        <div key={item.id} className="bg-white rounded-lg shadow overflow-hidden">
+                        <div key={item.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                             <div className="relative aspect-square bg-gray-100">
                                 {item.type === "video" ? (
                                     <video
@@ -214,7 +224,13 @@ export default function ContentManagement() {
                                 <h3 className="font-semibold text-gray-900 mb-1">{item.title || "Untitled"}</h3>
                                 <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
                                     <span className="px-2 py-1 bg-gray-100 rounded">{item.category || "Uncategorized"}</span>
-                                    <span className="font-bold text-indigo-600">{item.price || 0} Stars</span>
+                                    <div className="flex items-center gap-2">
+                                        {item.isFree ? (
+                                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">FREE</span>
+                                        ) : (
+                                            <span className="font-bold" style={{ color: '#0088CC' }}>{item.price || 0} Stars</span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
@@ -245,7 +261,7 @@ export default function ContentManagement() {
 
             {/* Upload/Edit Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: '#00000078' }}>
                     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900">
@@ -271,7 +287,8 @@ export default function ContentManagement() {
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                    onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                                     required
                                 />
                             </div>
@@ -283,7 +300,8 @@ export default function ContentManagement() {
                                 <select
                                     value={formData.category}
                                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                    onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                                     required
                                 >
                                     <option value="">Select category</option>
@@ -294,17 +312,55 @@ export default function ContentManagement() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Price (Stars)
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Pricing
                                 </label>
-                                <input
-                                    type="number"
-                                    value={formData.price}
-                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    min="1"
-                                    required
-                                />
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="radio"
+                                            id="free-content"
+                                            name="pricing-content"
+                                            checked={formData.isFree}
+                                            onChange={() => setFormData({ ...formData, isFree: true, price: 0 })}
+                                            className="w-4 h-4"
+                                            style={{ accentColor: '#0088CC' }}
+                                        />
+                                        <label htmlFor="free-content" className="text-sm text-gray-700 cursor-pointer">
+                                            Free
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="radio"
+                                            id="paid-content"
+                                            name="pricing-content"
+                                            checked={!formData.isFree}
+                                            onChange={() => setFormData({ ...formData, isFree: false })}
+                                            className="w-4 h-4"
+                                            style={{ accentColor: '#0088CC' }}
+                                        />
+                                        <label htmlFor="paid-content" className="text-sm text-gray-700 cursor-pointer">
+                                            Paid
+                                        </label>
+                                    </div>
+                                    {!formData.isFree && (
+                                        <div className="ml-7">
+                                            <label className="block text-xs text-gray-600 mb-1">
+                                                Price (Stars)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={formData.price}
+                                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                                onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
+                                                min="1"
+                                                required={!formData.isFree}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div>
@@ -324,7 +380,8 @@ export default function ContentManagement() {
                                     type="file"
                                     accept="image/*,video/*"
                                     onChange={handleFileChange}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                    onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                                     required={!editingItem}
                                 />
                             </div>
@@ -343,7 +400,10 @@ export default function ContentManagement() {
                                 <button
                                     type="submit"
                                     disabled={uploading}
-                                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                                    className="flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50"
+                                    style={{ backgroundColor: '#0088CC' }}
+                                    onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#0077BB')}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0088CC'}
                                 >
                                     {uploading ? "Uploading..." : editingItem ? "Update" : "Upload"}
                                 </button>

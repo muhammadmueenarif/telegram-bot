@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Stars Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f1a 100%);
+      min-height: 100vh;
+    }
+    .stars-bg {
+      background-image: 
+        radial-gradient(2px 2px at 20px 30px, #ffd700, transparent),
+        radial-gradient(2px 2px at 40px 70px, #fff, transparent),
+        radial-gradient(1px 1px at 90px 40px, #ffd700, transparent),
+        radial-gradient(2px 2px at 130px 80px, #fff, transparent),
+        radial-gradient(1px 1px at 160px 30px, #ffd700, transparent),
+        radial-gradient(2px 2px at 200px 60px, #fff, transparent),
+        radial-gradient(1px 1px at 240px 20px, #ffd700, transparent),
+        radial-gradient(2px 2px at 280px 50px, #fff, transparent),
+        radial-gradient(1px 1px at 320px 70px, #ffd700, transparent),
+        radial-gradient(2px 2px at 360px 30px, #fff, transparent);
+      animation: twinkle 3s ease-in-out infinite;
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .package-card {
+      background: rgba(55, 55, 75, 0.6);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+    .package-card:hover {
+      background: rgba(75, 75, 95, 0.8);
+      transform: scale(1.02);
+    }
+    .package-card:active {
+      transform: scale(0.98);
+    }
+    .star-icon {
+      filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+    }
+    .loading-spinner {
+      border: 3px solid rgba(255, 215, 0, 0.3);
+      border-top: 3px solid #ffd700;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="text-white">
+  <!-- Header -->
+  <div class="stars-bg relative">
+    <!-- Close Button & Balance -->
+    <div class="flex justify-between items-center p-4">
+      <button onclick="closeApp()" class="text-blue-400 font-medium">Close</button>
+      <div class="flex items-center gap-1">
+        <span class="text-gray-300 text-sm">Balance</span>
+        <span class="text-yellow-400">⭐</span>
+        <span id="userBalance" class="font-bold">0</span>
+      </div>
+    </div>
+
+    <!-- Big Star Icon -->
+    <div class="flex justify-center py-6">
+      <div class="star-icon text-8xl">⭐</div>
+    </div>
+
+    <!-- Stars Needed -->
+    <div class="text-center pb-6">
+      <h1 id="starsNeeded" class="text-3xl font-bold mb-2">Select Package</h1>
+      <p class="text-gray-400">Buy Stars to unlock media and use them on mini apps.</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="flex justify-center items-center py-10">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- Packages List -->
+  <div id="packagesList" class="px-4 pb-6 space-y-3 hidden"></div>
+
+  <!-- Show More Button -->
+  <div id="showMoreBtn" class="px-4 pb-4 hidden">
+    <button onclick="showMorePackages()" class="w-full py-3 text-blue-400 font-medium flex items-center justify-center gap-2">
+      Show More Options
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Terms -->
+  <div class="text-center text-gray-500 text-sm pb-8 px-4">
+    By proceeding and purchasing Stars,<br>
+    you agree with <a href="#" class="text-blue-400">Terms and Conditions</a>.
+  </div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAQIamulztL-0FYMCpUTqXcXXWL9cXqqOE",
+      authDomain: "ai-crypto-97ae9.firebaseapp.com",
+      projectId: "ai-crypto-97ae9",
+      storageBucket: "ai-crypto-97ae9.firebasestorage.app",
+      messagingSenderId: "416160516722",
+      appId: "1:416160516722:web:11b480063229e0ad9d50eb",
+      measurementId: "G-PYG48MH9JN"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // Get user info
+    const user = tg.initDataUnsafe?.user || { id: 'test_user', first_name: 'Test' };
+    const userId = user.id;
+
+    // State
+    let packages = [];
+    let selectedPackage = null;
+    let showAll = false;
+
+    // Setup Main Button
+    tg.MainButton.setText('Continue');
+    tg.MainButton.hide();
+
+    // When main button is clicked, save to Firebase and close
+    tg.MainButton.onClick(async () => {
+      if (selectedPackage) {
+        try {
+          tg.MainButton.showProgress();
+
+          // Save purchase request to Firebase
+          const purchaseData = {
+            userId: userId,
+            userName: user.first_name,
+            packageId: selectedPackage.id,
+            stars: selectedPackage.stars,
+            price: selectedPackage.price,
+            currency: selectedPackage.currency,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'pending'
+          };
+
+          await db.collection('package_requests').add(purchaseData);
+          console.log('Purchase request saved to Firebase');
+
+          // Show success message
+          tg.showAlert('Package selected! Returning to chat...', () => {
+            tg.close();
+          });
+
+        } catch (error) {
+          console.error('Error saving purchase request:', error);
+          tg.showAlert('Error: ' + error.message);
+          tg.MainButton.hideProgress();
+        }
+      }
+    });
+
+    // Load packages from Firebase
+    async function loadPackages() {
+      try {
+        const snapshot = await db.collection('packages')
+          .orderBy('order', 'asc')
+          .get();
+
+        packages = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        renderPackages();
+      } catch (error) {
+        console.error('Error loading packages:', error);
+        document.getElementById('loadingState').innerHTML = `
+          <p class="text-red-400">Failed to load packages. Please try again.</p>
+        `;
+      }
+    }
+
+    // Render packages
+    function renderPackages() {
+      const container = document.getElementById('packagesList');
+      const loadingState = document.getElementById('loadingState');
+      const showMoreBtn = document.getElementById('showMoreBtn');
+
+      loadingState.classList.add('hidden');
+      container.classList.remove('hidden');
+
+      const displayPackages = showAll ? packages : packages.slice(0, 4);
+
+      container.innerHTML = displayPackages.map(pkg => `
+        <div class="package-card rounded-2xl p-4 flex items-center justify-between cursor-pointer"
+             onclick="selectPackage('${pkg.id}')">
+          <div class="flex items-center gap-3">
+            <div class="text-2xl">⭐</div>
+            <div>
+              <div class="font-bold text-lg">${pkg.stars.toLocaleString()} Stars</div>
+              ${pkg.includes ? `<div class="text-gray-400 text-sm">${pkg.includes}</div>` : ''}
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-lg">${pkg.currency}${pkg.price.toFixed(2)}</div>
+          </div>
+        </div>
+      `).join('');
+
+      if (packages.length > 4 && !showAll) {
+        showMoreBtn.classList.remove('hidden');
+      } else {
+        showMoreBtn.classList.add('hidden');
+      }
+    }
+
+    // Show more packages
+    function showMorePackages() {
+      showAll = true;
+      renderPackages();
+    }
+
+    // Select package - highlight and show button
+    function selectPackage(packageId) {
+      selectedPackage = packages.find(p => p.id === packageId);
+      if (!selectedPackage) {
+        return;
+      }
+
+      // Haptic feedback
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
+      }
+
+      // Update UI to show selected package
+      document.querySelectorAll('.package-card').forEach(card => {
+        card.classList.remove('ring-4', 'ring-yellow-400');
+      });
+      event.target.closest('.package-card').classList.add('ring-4', 'ring-yellow-400');
+
+      // Show and update main button
+      tg.MainButton.setText(`Buy ${selectedPackage.stars} Stars for ${selectedPackage.currency}${selectedPackage.price}`);
+      tg.MainButton.show();
+
+      console.log('Package selected:', selectedPackage);
+    }
+
+    // Close app
+    function closeApp() {
+      tg.close();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPackages();
+    });
+  </script>
+</body>
+</html>

@@ -75,7 +75,10 @@ export default function UsersPage() {
                 <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
                 <button
                     onClick={loadUsers}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    className="px-4 py-2 text-white rounded-lg"
+                    style={{ backgroundColor: '#0088CC' }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#0077BB'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#0088CC'}
                 >
                     Refresh
                 </button>
@@ -83,17 +86,17 @@ export default function UsersPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <p className="text-sm text-gray-600">Total Users</p>
                     <p className="text-2xl font-bold text-gray-900">{users.length}</p>
                 </div>
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <p className="text-sm text-gray-600">Blocked Users</p>
                     <p className="text-2xl font-bold text-red-600">
                         {users.filter(u => u.blocked).length}
                     </p>
                 </div>
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <p className="text-sm text-gray-600">Total Revenue</p>
                     <p className="text-2xl font-bold text-green-600">
                         {users.reduce((sum, u) => sum + (u.totalSpent || 0), 0)} Stars
@@ -102,7 +105,7 @@ export default function UsersPage() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-lg shadow p-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                     <div className="flex-1 relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -111,13 +114,15 @@ export default function UsersPage() {
                             placeholder="Search by name, username, or user ID..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                            onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                         />
                     </div>
                     <select
                         value={filterBlocked}
                         onChange={(e) => setFilterBlocked(e.target.value)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                        onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                     >
                         <option value="all">All Users</option>
                         <option value="active">Active Only</option>
@@ -127,7 +132,7 @@ export default function UsersPage() {
             </div>
 
             {/* Users Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50">
@@ -143,7 +148,7 @@ export default function UsersPage() {
                         <tbody>
                             {sortedUsers.length > 0 ? (
                                 sortedUsers.map((user) => (
-                                    <tr key={user.id} className="border-b hover:bg-gray-50">
+                                    <tr key={user.id} className="hover:bg-gray-50">
                                         <td className="py-3 px-4">
                                             <div>
                                                 <p className="font-medium text-gray-900">{user.firstName || "Unknown"}</p>

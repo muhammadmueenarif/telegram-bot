@@ -116,7 +116,10 @@ export default function Dashboard() {
                 <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
                 <button
                     onClick={loadDashboardData}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    className="px-4 py-2 text-white rounded-lg"
+                    style={{ backgroundColor: '#0088CC' }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#0077BB'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#0088CC'}
                 >
                     Refresh
                 </button>
@@ -124,7 +127,7 @@ export default function Dashboard() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600">Today's Stars</p>
@@ -134,7 +137,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600">This Week</p>
@@ -144,7 +147,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600">This Month</p>
@@ -154,20 +157,20 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600">Total Users</p>
                             <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
                         </div>
-                        <Users className="w-8 h-8 text-indigo-500" />
+                        <Users className="w-8 h-8" style={{ color: '#0088CC' }} />
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Top Paying Users */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Top Paying Users</h2>
                     <div className="space-y-3">
                         {topUsers.length > 0 ? (
@@ -180,7 +183,7 @@ export default function Dashboard() {
                                         <p className="text-sm text-gray-500">@{user.username || "no username"}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-bold text-indigo-600">{user.totalSpent || 0} Stars</p>
+                                        <p className="font-bold" style={{ color: '#0088CC' }}>{user.totalSpent || 0} Stars</p>
                                         <p className="text-xs text-gray-500">#{index + 1}</p>
                                     </div>
                                 </div>
@@ -192,7 +195,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Most Sold Content */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Most Sold Content</h2>
                     <div className="space-y-3">
                         {topContent.length > 0 ? (
@@ -203,7 +206,7 @@ export default function Dashboard() {
                                         <p className="text-sm text-gray-500">{item.category || "No category"}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-bold text-indigo-600">{item.price || 0} Stars</p>
+                                        <p className="font-bold" style={{ color: '#0088CC' }}>{item.price || 0} Stars</p>
                                         <p className="text-xs text-gray-500">
                                             {item.salesCount || 0} sales
           </p>
@@ -223,7 +226,7 @@ export default function Dashboard() {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b">
+                            <tr>
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">User ID</th>
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
                                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Payload</th>
@@ -233,9 +236,9 @@ export default function Dashboard() {
                         <tbody>
                             {recentTransactions.length > 0 ? (
                                 recentTransactions.map((tx) => (
-                                    <tr key={tx.id} className="border-b hover:bg-gray-50">
+                                    <tr key={tx.id} className="hover:bg-gray-50">
                                         <td className="py-3 px-4 text-sm text-gray-900">{tx.userId}</td>
-                                        <td className="py-3 px-4 text-sm font-medium text-indigo-600">{tx.amount} Stars</td>
+                                        <td className="py-3 px-4 text-sm font-medium" style={{ color: '#0088CC' }}>{tx.amount} Stars</td>
                                         <td className="py-3 px-4 text-sm text-gray-600">{tx.payload || "N/A"}</td>
                                         <td className="py-3 px-4 text-sm text-gray-600">
                                             {tx.timestamp.toLocaleString()}

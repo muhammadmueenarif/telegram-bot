@@ -2,8 +2,8 @@ import "./globals.css";
 import AdminLayout from "./components/AdminLayout";
 
 export const metadata = {
-  title: "Jessica Bot Admin",
-  description: "Admin panel for Jessica Telegram Bot",
+  title: "Bot Admin",
+  description: "Admin panel for Telegram Bot",
 };
 
 export default function RootLayout({ children }) {

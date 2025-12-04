@@ -8,9 +8,9 @@ export default function PersonaPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [persona, setPersona] = useState({
-        name: "Jessica",
+        name: "",
         age: "23",
-        prompt: `You are Jessica, a 23-year-old flirty and sweet girl.
+        prompt: `You are a flirty and sweet girl.
 
 How you talk:
 - Casual and natural, like texting a boyfriend
@@ -42,7 +42,7 @@ Rules:
             if (personaSnap.exists()) {
                 const data = personaSnap.data();
                 setPersona({
-                    name: data.name || "Jessica",
+                    name: data.name || "",
                     age: data.age || "23",
                     prompt: data.prompt || persona.prompt,
                     bio: data.bio || persona.bio,
@@ -90,7 +90,10 @@ Rules:
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 text-white rounded-lg disabled:opacity-50"
+                    style={{ backgroundColor: '#0088CC' }}
+                    onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#0077BB')}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0088CC'}
                 >
                     <Save className="w-5 h-5" />
                     {saving ? "Saving..." : "Save Changes"}
@@ -99,9 +102,9 @@ Rules:
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Basic Info */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center gap-3 mb-4">
-                        <User className="w-6 h-6 text-indigo-600" />
+                        <User className="w-6 h-6" style={{ color: '#0088CC' }} />
                         <h2 className="text-xl font-bold text-gray-900">Basic Information</h2>
                     </div>
 
@@ -114,7 +117,8 @@ Rules:
                                 type="text"
                                 value={persona.name}
                                 onChange={(e) => setPersona({ ...persona, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                             />
                         </div>
 
@@ -126,7 +130,8 @@ Rules:
                                 type="text"
                                 value={persona.age}
                                 onChange={(e) => setPersona({ ...persona, age: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
                             />
                         </div>
 
@@ -138,33 +143,34 @@ Rules:
                                 value={persona.bio}
                                 onChange={(e) => setPersona({ ...persona, bio: e.target.value })}
                                 rows="4"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                placeholder="Describe Jessica's personality and backstory..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2"
+                                onFocus={(e) => e.target.style.outlineColor = '#0088CC'}
+                                placeholder="Describe the personality and backstory..."
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Personality Prompt */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center gap-3 mb-4">
-                        <MessageSquare className="w-6 h-6 text-indigo-600" />
+                        <MessageSquare className="w-6 h-6" style={{ color: '#0088CC' }} />
                         <h2 className="text-xl font-bold text-gray-900">Personality Prompt</h2>
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            System Prompt (How Jessica talks and behaves)
+                            System Prompt (How the bot talks and behaves)
                         </label>
                         <textarea
                             value={persona.prompt}
                             onChange={(e) => setPersona({ ...persona, prompt: e.target.value })}
                             rows="20"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
-                            placeholder="Enter the system prompt that defines Jessica's personality..."
+                            placeholder="Enter the system prompt that defines the bot's personality..."
                         />
                         <p className="mt-2 text-xs text-gray-500">
-                            This prompt is sent to OpenAI to define how Jessica responds to users.
+                            This prompt is sent to OpenAI to define how the bot responds to users.
                         </p>
                     </div>
                 </div>
@@ -173,7 +179,7 @@ Rules:
             {/* Preview Section */}
             <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center gap-3 mb-4">
-                    <FileText className="w-6 h-6 text-indigo-600" />
+                    <FileText className="w-6 h-6" style={{ color: '#0088CC' }} />
                     <h2 className="text-xl font-bold text-gray-900">Preview</h2>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
