@@ -39,11 +39,86 @@ class Bot {
         // Voice message handler - must come before generic message handler
         this.bot.on("voice", async (ctx) => {
             try {
-                console.log(`[${ctx.from.id}] 🎤 Voice message received, sending ring.mp3`);
-                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
-                await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+                const userId = ctx.from.id;
+                const voice = ctx.message.voice;
+                const duration = voice.duration; // in seconds
+
+                console.log(`[${userId}] 🎤 Voice message received (${duration}s)`);
+
+                // If voice note is less than 60 seconds, transcribe and reply with text
+                if (duration < 60) {
+                    await ctx.sendChatAction("typing");
+
+                    try {
+                        // Download the voice file
+                        const fileLink = await ctx.telegram.getFileLink(voice.file_id);
+                        const https = require('https');
+                        const path = require('path');
+                        const os = require('os');
+
+                        // Download to temp file
+                        const tempFilePath = path.join(os.tmpdir(), `voice_${userId}_${Date.now()}.ogg`);
+                        const fileStream = fs.createWriteStream(tempFilePath);
+
+                        await new Promise((resolve, reject) => {
+                            https.get(fileLink.href, (response) => {
+                                response.pipe(fileStream);
+                                fileStream.on('finish', () => {
+                                    fileStream.close();
+                                    resolve();
+                                });
+                            }).on('error', reject);
+                        });
+
+                        console.log(`[${userId}] 📥 Voice file downloaded, transcribing...`);
+
+                        // Transcribe using Whisper
+                        const transcription = await this.openaiService.transcribeAudio(
+                            fs.createReadStream(tempFilePath)
+                        );
+
+                        console.log(`[${userId}] 📝 Transcription: ${transcription}`);
+
+                        // Clean up temp file
+                        fs.unlinkSync(tempFilePath);
+
+                        // Save transcription to Firebase as user message
+                        const FirebaseService = require("./services/firebaseService");
+                        await FirebaseService.saveChatMessage(userId, "user", `[Voice message] ${transcription}`);
+
+                        // Process transcription as text message using text handler
+                        const fakeTextCtx = {
+                            ...ctx,
+                            from: ctx.from,
+                            message: {
+                                message_id: ctx.message.message_id,
+                                from: ctx.from,
+                                chat: ctx.message.chat,
+                                date: ctx.message.date,
+                                text: transcription
+                            },
+                            sendChatAction: ctx.sendChatAction.bind(ctx),
+                            reply: ctx.reply.bind(ctx),
+                            replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
+                            replyWithVideo: ctx.replyWithVideo.bind(ctx)
+                        };
+
+                        await this.textHandler.handleTextMessage(fakeTextCtx);
+
+                    } catch (transcriptionError) {
+                        console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
+                        // Fallback to sending ring.mp3
+                        const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                        await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+                    }
+                } else {
+                    // Voice note is 60+ seconds, just send ring.mp3
+                    console.log(`[${userId}] Voice too long (${duration}s), sending ring.mp3`);
+                    const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                    await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+                }
             } catch (error) {
-                console.error("Error sending voice:", error);
+                console.error("Error handling voice:", error);
             }
         });
 

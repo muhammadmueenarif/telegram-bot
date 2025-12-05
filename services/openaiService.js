@@ -44,6 +44,19 @@ class OpenAIService {
             return "Sorry babe, give me a sec... my phone's being weird 😅";
         }
     }
+
+    async transcribeAudio(audioStream) {
+        try {
+            const response = await this.openai.audio.transcriptions.create({
+                file: audioStream,
+                model: "whisper-1",
+            });
+            return response.text;
+        } catch (error) {
+            console.error("Whisper transcription error:", error);
+            throw error;
+        }
+    }
 }
 
 module.exports = OpenAIService;
