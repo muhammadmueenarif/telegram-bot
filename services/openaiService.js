@@ -57,6 +57,36 @@ class OpenAIService {
             throw error;
         }
     }
+
+    async analyzeImage(imageUrl, userPrompt = "What's in this image?") {
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: "gpt-4o",
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: userPrompt
+                            },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: imageUrl
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens: 300,
+            });
+            return response.choices[0].message.content;
+        } catch (error) {
+            console.error("Vision API error:", error);
+            throw error;
+        }
+    }
 }
 
 module.exports = OpenAIService;

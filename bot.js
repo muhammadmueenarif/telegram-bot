@@ -122,6 +122,145 @@ class Bot {
             }
         });
 
+        // Photo handler - must come before generic message handler
+        this.bot.on("photo", async (ctx) => {
+            try {
+                const userId = ctx.from.id;
+                const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get highest resolution
+                const caption = ctx.message.caption || "";
+
+                console.log(`[${userId}] 📸 ===== PHOTO HANDLER TRIGGERED =====`);
+                console.log(`[${userId}] 📸 Photo received${caption ? ` with caption: ${caption}` : ''}`);
+
+                await ctx.sendChatAction("typing");
+
+                try {
+                    // Get photo file link
+                    const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+                    console.log(`[${userId}] 🔍 Analyzing image...`);
+
+                    // Analyze image with OpenAI Vision
+                    const prompt = caption
+                        ? `The user sent you this image with the message: "${caption}". Respond naturally as Nyla, acknowledging both the image and their message.`
+                        : "Describe what you see in this image and respond naturally as Nyla.";
+
+                    const imageAnalysis = await this.openaiService.analyzeImage(fileLink.href, prompt);
+
+                    console.log(`[${userId}] 🤖 Vision analysis: ${imageAnalysis}`);
+
+                    // Save to Firebase
+                    const FirebaseService = require("./services/firebaseService");
+                    await FirebaseService.saveChatMessage(userId, "user", caption ? `[Photo] ${caption}` : "[Photo sent]");
+
+                    // Use the image analysis to generate a contextual response
+                    const fakeTextCtx = {
+                        ...ctx,
+                        from: ctx.from,
+                        message: {
+                            message_id: ctx.message.message_id,
+                            from: ctx.from,
+                            chat: ctx.message.chat,
+                            date: ctx.message.date,
+                            text: `[User sent a photo${caption ? ` with caption: "${caption}"` : ''}. Image contains: ${imageAnalysis}]`
+                        },
+                        sendChatAction: ctx.sendChatAction.bind(ctx),
+                        reply: ctx.reply.bind(ctx),
+                        replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
+                        replyWithVideo: ctx.replyWithVideo.bind(ctx)
+                    };
+
+                    await this.textHandler.handleTextMessage(fakeTextCtx);
+
+                } catch (visionError) {
+                    console.error(`[${userId}] Error analyzing image:`, visionError);
+                    // Fallback to simple response
+                    await randomDelay();
+                    await ctx.reply("Omg you're so cute! 😍 Send more?");
+                }
+            } catch (error) {
+                console.error("Error handling photo:", error);
+            }
+        });
+
+        // Document handler (for files sent via attachment button) - must come before generic message handler
+        this.bot.on("document", async (ctx) => {
+            try {
+                const userId = ctx.from.id;
+                const document = ctx.message.document;
+                const mimeType = document.mime_type || "";
+                const caption = ctx.message.caption || "";
+
+                console.log(`[${userId}] 📎 ===== DOCUMENT HANDLER TRIGGERED =====`);
+                console.log(`[${userId}] 📎 Document received: ${document.file_name} (${mimeType})`);
+
+                // Check if it's an image
+                if (mimeType.startsWith("image/")) {
+                    console.log(`[${userId}] 📸 Document is an image, analyzing...`);
+
+                    await ctx.sendChatAction("typing");
+
+                    try {
+                        // Get document file link
+                        const fileLink = await ctx.telegram.getFileLink(document.file_id);
+                        console.log(`[${userId}] 🔍 Analyzing image document...`);
+
+                        // Analyze image with OpenAI Vision
+                        const prompt = caption
+                            ? `The user sent you this image with the message: "${caption}". Respond naturally as Nyla, acknowledging both the image and their message.`
+                            : "Describe what you see in this image and respond naturally as Nyla.";
+
+                        const imageAnalysis = await this.openaiService.analyzeImage(fileLink.href, prompt);
+
+                        console.log(`[${userId}] 🤖 Vision analysis: ${imageAnalysis}`);
+
+                        // Save to Firebase
+                        const FirebaseService = require("./services/firebaseService");
+                        await FirebaseService.saveChatMessage(userId, "user", caption ? `[Image file] ${caption}` : "[Image file sent]");
+
+                        // Use the image analysis to generate a contextual response
+                        const fakeTextCtx = {
+                            ...ctx,
+                            from: ctx.from,
+                            message: {
+                                message_id: ctx.message.message_id,
+                                from: ctx.from,
+                                chat: ctx.message.chat,
+                                date: ctx.message.date,
+                                text: `[User sent an image${caption ? ` with caption: "${caption}"` : ''}. Image contains: ${imageAnalysis}]`
+                            },
+                            sendChatAction: ctx.sendChatAction.bind(ctx),
+                            reply: ctx.reply.bind(ctx),
+                            replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
+                            replyWithVideo: ctx.replyWithVideo.bind(ctx)
+                        };
+
+                        await this.textHandler.handleTextMessage(fakeTextCtx);
+
+                    } catch (visionError) {
+                        console.error(`[${userId}] Error analyzing image document:`, visionError);
+                        // Fallback to simple response
+                        await randomDelay();
+                        await ctx.reply("Omg you're so cute! 😍 Send more?");
+                    }
+                } else {
+                    // Not an image, just acknowledge
+                    console.log(`[${userId}] 📄 Non-image document, sending simple response`);
+                    await ctx.sendChatAction("typing");
+                    await randomDelay();
+                    await ctx.reply("Thanks for sending that babe! 💕");
+                }
+            } catch (error) {
+                console.error("Error handling document:", error);
+            }
+        });
+
+        // Sticker handler
+        this.bot.on("sticker", async (ctx) => {
+            await ctx.sendChatAction("typing");
+            await randomDelay();
+            await ctx.reply("Haha I love that 😂💕");
+        });
+
         // Audio file handler (MP3, etc.)
         this.bot.on("audio", async (ctx) => {
             try {
@@ -148,6 +287,23 @@ class Bot {
         // Telegram sends this as a normal message with `web_app_data` field
         this.bot.on("message", async (ctx) => {
             try {
+                // Debug: Log what type of message we received
+                if (ctx.message) {
+                    const messageTypes = [];
+                    if (ctx.message.text) messageTypes.push('text');
+                    if (ctx.message.photo) messageTypes.push('photo');
+                    if (ctx.message.voice) messageTypes.push('voice');
+                    if (ctx.message.audio) messageTypes.push('audio');
+                    if (ctx.message.video) messageTypes.push('video');
+                    if (ctx.message.document) messageTypes.push('document');
+                    if (ctx.message.sticker) messageTypes.push('sticker');
+                    if (ctx.message.web_app_data) messageTypes.push('web_app_data');
+
+                    if (messageTypes.length > 0 && !messageTypes.includes('web_app_data')) {
+                        console.log(`[${ctx.from.id}] 📨 Generic message handler caught: ${messageTypes.join(', ')}`);
+                    }
+                }
+
                 const webAppData = ctx.message && ctx.message.web_app_data;
                 if (!webAppData || !webAppData.data) {
                     return; // Not from mini app, ignore
@@ -199,20 +355,6 @@ class Bot {
                 console.error("Error handling mini app data:", error);
                 await ctx.reply("Sorry babe, something went wrong with the mini app... try again? 😅");
             }
-        });
-
-        // Photo handler
-        this.bot.on("photo", async (ctx) => {
-            await ctx.sendChatAction("typing");
-            await randomDelay();
-            await ctx.reply("Omg you're so cute! 😍 Send more?");
-        });
-
-        // Sticker handler
-        this.bot.on("sticker", async (ctx) => {
-            await ctx.sendChatAction("typing");
-            await randomDelay();
-            await ctx.reply("Haha I love that 😂💕");
         });
     }
 
