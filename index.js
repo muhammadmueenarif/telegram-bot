@@ -7,23 +7,94 @@ const Bot = require("./bot");
 const bot = new Bot(BOT_TOKEN, OPENAI_API_KEY);
 
 // Listen for Persona updates from Firebase
-const { doc, onSnapshot, collection, query, where, updateDoc } = require("firebase/firestore");
+const { doc, onSnapshot, collection, query, where, updateDoc, getDoc } = require("firebase/firestore");
 const { db } = require("./firebaseConfig");
-const { PERSONA } = require("./utils/constants");
+const { DEFAULT_PERSONA } = require("./utils/constants");
 const { randomDelay } = require("./utils/helpers");
 const FirebaseService = require("./services/firebaseService");
 
 // Global persona variable that can be updated
-let currentPersona = PERSONA;
+let currentPersona = DEFAULT_PERSONA;
 
+// Log default persona on startup
+console.log("\n📋 [INIT] Default Persona loaded:");
+const defaultWords = DEFAULT_PERSONA.split(/\s+/);
+const defaultPreview = defaultWords.length >= 200 
+    ? defaultWords.slice(0, 200).join(' ') + '...'
+    : DEFAULT_PERSONA.substring(0, 1000);
+console.log(`📋 [INIT] Default length: ${DEFAULT_PERSONA.length} chars, ${defaultWords.length} words`);
+console.log(`📋 [INIT] Default preview:\n${defaultPreview}\n`);
+
+// Function to update persona (can be called from anywhere)
+function updatePersona(prompt, source = "Firebase") {
+    if (prompt) {
+        const oldPersona = currentPersona;
+        currentPersona = prompt;
+        
+        // Log detailed information
+        const words = prompt.split(/\s+/);
+        const preview = words.length >= 200 
+            ? words.slice(0, 200).join(' ') + '...'
+            : prompt.substring(0, 1000);
+        
+        console.log(`\n🔄 [updatePersona] Persona updated from ${source.toUpperCase()}`);
+        console.log(`🔄 [updatePersona] Prompt length: ${prompt.length} characters, ${words.length} words`);
+        console.log(`🔄 [updatePersona] First 200 words:\n${preview}\n`);
+        
+        // Check if it's different from default
+        const isDefault = prompt === DEFAULT_PERSONA;
+        if (isDefault) {
+            console.log(`⚠️ [updatePersona] WARNING: Updated persona matches DEFAULT_PERSONA`);
+        }
+    }
+}
+
+// Load persona from Firebase on startup
+async function loadPersonaFromFirebase() {
+    try {
+        console.log("\n📥 [loadPersonaFromFirebase] Attempting to load persona from Firebase...");
+        const settingsRef = doc(db, "settings", "persona");
+        const personaSnap = await getDoc(settingsRef);
+        
+        if (personaSnap.exists()) {
+            const data = personaSnap.data();
+            console.log(`📥 [loadPersonaFromFirebase] Document exists. Fields: ${Object.keys(data).join(', ')}`);
+            
+            if (data.prompt) {
+                updatePersona(data.prompt, "Firebase (startup)");
+                console.log("✅ [loadPersonaFromFirebase] Successfully loaded persona from Firebase on startup");
+            } else {
+                console.log("⚠️ [loadPersonaFromFirebase] Persona document exists but no 'prompt' field found");
+                console.log("⚠️ [loadPersonaFromFirebase] Using DEFAULT_PERSONA");
+                updatePersona(DEFAULT_PERSONA, "Default (no prompt field)");
+            }
+        } else {
+            console.log("ℹ️ [loadPersonaFromFirebase] No persona document found in Firebase");
+            console.log("ℹ️ [loadPersonaFromFirebase] Using DEFAULT_PERSONA");
+            updatePersona(DEFAULT_PERSONA, "Default (no document)");
+        }
+    } catch (error) {
+        console.error("❌ [loadPersonaFromFirebase] Error loading persona from Firebase:", error);
+        console.log("ℹ️ [loadPersonaFromFirebase] Using DEFAULT_PERSONA due to error");
+        updatePersona(DEFAULT_PERSONA, "Default (error)");
+    }
+}
+
+// Listen for Persona updates from Firebase in real-time
 const settingsRef = doc(db, "settings", "persona");
 onSnapshot(settingsRef, (doc) => {
+    console.log("\n📡 [onSnapshot] Firebase persona document changed");
     if (doc.exists()) {
         const data = doc.data();
+        console.log(`📡 [onSnapshot] Document exists. Fields: ${Object.keys(data).join(', ')}`);
         if (data.prompt) {
-            currentPersona = data.prompt;
-            console.log("🔄 Persona updated from Firebase");
+            updatePersona(data.prompt, "Firebase (real-time)");
+            console.log("🔄 [onSnapshot] Persona updated from Firebase (real-time)");
+        } else {
+            console.log("⚠️ [onSnapshot] Document exists but no 'prompt' field");
         }
+    } else {
+        console.log("⚠️ [onSnapshot] Document no longer exists, keeping current persona");
     }
 });
 
@@ -83,14 +154,26 @@ onSnapshot(pendingRequestsQuery, async (snapshot) => {
     });
 });
 
-// Export for use in other modules
-module.exports = { currentPersona };
+// Export for use in other modules - export a getter function to always get current value
+module.exports = { 
+    get currentPersona() { return currentPersona; },
+    updatePersona 
+};
 
-// Start the bot
-bot.launch().catch(error => {
-    console.error("Failed to start bot:", error);
-    process.exit(1);
-});
+// Start the bot after loading persona
+async function startBot() {
+    // Load persona first
+    await loadPersonaFromFirebase();
+    
+    // Then start the bot
+    console.log("🚀 Starting bot...");
+    bot.launch().catch(error => {
+        console.error("Failed to start bot:", error);
+        process.exit(1);
+    });
+}
+
+startBot();
 
 // Graceful shutdown
 process.once("SIGINT", () => bot.stop("SIGINT"));

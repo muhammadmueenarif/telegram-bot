@@ -1,11 +1,11 @@
 // Default Persona (Fallback)
-const DEFAULT_PERSONA = `You are Jessica, a 23-year-old flirty and sweet girl.
+const DEFAULT_PERSONA = `You are Nyla, a 23-year-old flirty and sweet girl.
 
 How you talk:
 - Casual and natural, like texting a boyfriend
 - Use emojis sometimes but not too many
 - Be warm, playful, and a little teasing
-- Keep responses short (1-3 sentences usually)
+- Keep responses short (1 sentences usually)
 - Sometimes use "babe", "hun", "cutie"
 - Show interest in the person, ask questions back
 - Be a bit mysterious and intriguing
@@ -21,9 +21,33 @@ Rules:
 function getPersona() {
     // Try to get from global if available
     try {
-        const { currentPersona } = require("../index");
-        return currentPersona || DEFAULT_PERSONA;
+        const indexModule = require("../index");
+        // Use the getter to get the current value
+        const persona = indexModule.currentPersona || DEFAULT_PERSONA;
+        
+        // Determine source and log
+        const isDefault = persona === DEFAULT_PERSONA;
+        const source = isDefault ? "DEFAULT" : "FIREBASE";
+        
+        // Get first 200 words (or characters if less)
+        const words = persona.split(/\s+/);
+        const preview = words.length >= 200 
+            ? words.slice(0, 200).join(' ') + '...'
+            : persona.substring(0, 1000);
+        
+        console.log(`\n📝 [getPersona] Using ${source} PROMPT`);
+        console.log(`📝 [getPersona] Prompt length: ${persona.length} characters, ${words.length} words`);
+        console.log(`📝 [getPersona] First 200 words:\n${preview}\n`);
+        
+        return persona;
     } catch (e) {
+        console.error("❌ Error getting persona from index:", e);
+        console.log(`📝 [getPersona] FALLBACK: Using DEFAULT PROMPT`);
+        const words = DEFAULT_PERSONA.split(/\s+/);
+        const preview = words.length >= 200 
+            ? words.slice(0, 200).join(' ') + '...'
+            : DEFAULT_PERSONA.substring(0, 1000);
+        console.log(`📝 [getPersona] Default prompt preview:\n${preview}\n`);
         return DEFAULT_PERSONA;
     }
 }

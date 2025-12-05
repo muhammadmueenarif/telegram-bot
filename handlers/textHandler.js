@@ -105,10 +105,12 @@ class TextHandler {
         const persona = getPersona();
         const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 
+        console.log(`[${userId}] 📝 Using persona for greeting response (length: ${persona.length} chars)`);
+
         // Get AI response for greeting
         const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
 
-        console.log(`[${userId}] Jessica: ${response}`);
+        console.log(`[${userId}] Nyla: ${response}`);
 
         // Check if we just sent this exact response
         const lastAssistantMessage = this.memoryService.userMemory[userId]
@@ -286,10 +288,11 @@ class TextHandler {
         const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 
         console.log(`[${userId}] 📊 Using ${messagesToSend.length} messages for context`);
+        console.log(`[${userId}] 📝 Using persona for AI response (length: ${persona.length} chars)`);
 
         const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
 
-        console.log(`[${userId}] Jessica: ${response}`);
+        console.log(`[${userId}] Nyla: ${response}`);
 
         // Check if we just sent this exact response
         const lastAssistantMessage = this.memoryService.userMemory[userId]

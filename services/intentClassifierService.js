@@ -1,5 +1,6 @@
 const OpenAI = require("openai");
 const { OPENAI_API_KEY } = require("../config");
+const { getPersona } = require("../utils/constants");
 
 /**
  * Intent Classifier Service
@@ -20,7 +21,14 @@ class IntentClassifierService {
      */
     async analyzeIntent(userMessage, conversationHistory = [], userContext = {}) {
         try {
-            const systemPrompt = `You are an intelligent intent classifier for Jessica, a 23-year-old flirty content creator chatbot.
+            // Get the current persona from admin panel (or default)
+            const persona = getPersona();
+            console.log(`🎯 [IntentClassifier] Using persona for intent analysis (length: ${persona.length} chars)`);
+            
+            const systemPrompt = `You are an intelligent intent classifier for a content creator chatbot.
+
+PERSONA CONTEXT:
+${persona}
 
 Your job is to analyze user messages and determine the BEST ACTION to take.
 
@@ -56,7 +64,7 @@ IMPORTANT LOGIC:
 - Be smart about context - if user says "more" after getting free content, they probably want paid content
 
 RECENT CONVERSATION:
-${conversationHistory.slice(-5).map(m => `${m.role === 'user' ? 'User' : 'Jessica'}: ${m.content}`).join('\n')}
+${conversationHistory.slice(-5).map(m => `${m.role === 'user' ? 'User' : 'Nyla'}: ${m.content}`).join('\n')}
 
 USER MESSAGE: "${userMessage}"
 

@@ -1,4 +1,4 @@
-# Jessica Telegram Bot
+# Nyla Telegram Bot
 
 A Telegram bot with AI chat capabilities, content management, and payment processing using Telegram Stars.
 

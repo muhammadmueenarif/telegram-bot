@@ -136,8 +136,8 @@ class Bot {
                     polling: BOT_CONFIG.polling
                 });
 
-                console.log("✅ Jessica bot is running...");
-                console.log("Bot: @Jessica_testing_bot");
+                console.log("✅ Nyla bot is running...");
+                console.log("Bot: @Nyla_testing_bot");
                 break; // Success, exit retry loop
 
             } catch (error) {

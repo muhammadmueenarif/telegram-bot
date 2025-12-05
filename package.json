@@ -1,7 +1,7 @@
 {
-  "name": "jessica-bot",
+  "name": "Nyla-bot",
   "version": "1.0.0",
-  "description": "Jessica Telegram Bot",
+  "description": "Nyla Telegram Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
