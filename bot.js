@@ -6,6 +6,7 @@ const TextHandler = require("./handlers/textHandler");
 const OpenAIService = require("./services/openaiService");
 const MemoryService = require("./services/memoryService");
 const { randomDelay } = require("./utils/helpers");
+const fs = require("fs");
 
 class Bot {
     constructor(botToken, openaiApiKey) {
@@ -34,6 +35,39 @@ class Bot {
 
         // Text messages
         this.bot.on("text", (ctx) => this.textHandler.handleTextMessage(ctx));
+
+        // Voice message handler - must come before generic message handler
+        this.bot.on("voice", async (ctx) => {
+            try {
+                console.log(`[${ctx.from.id}] 🎤 Voice message received, sending ring.mp3`);
+                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+            } catch (error) {
+                console.error("Error sending voice:", error);
+            }
+        });
+
+        // Audio file handler (MP3, etc.)
+        this.bot.on("audio", async (ctx) => {
+            try {
+                console.log(`[${ctx.from.id}] 🎵 Audio file received, sending ring.mp3`);
+                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+            } catch (error) {
+                console.error("Error sending voice:", error);
+            }
+        });
+
+        // Video file handler
+        this.bot.on("video", async (ctx) => {
+            try {
+                console.log(`[${ctx.from.id}] 🎥 Video file received, sending ring.mp3`);
+                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+            } catch (error) {
+                console.error("Error sending voice:", error);
+            }
+        });
 
         // Handle mini app data (when user selects package in mini app)
         // Telegram sends this as a normal message with `web_app_data` field
