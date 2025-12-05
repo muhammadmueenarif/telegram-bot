@@ -87,6 +87,22 @@ class OpenAIService {
             throw error;
         }
     }
+
+    async textToSpeech(text) {
+        try {
+            const mp3 = await this.openai.audio.speech.create({
+                model: "tts-1",
+                voice: "nova", // female voice, sounds natural
+                input: text,
+            });
+
+            const buffer = Buffer.from(await mp3.arrayBuffer());
+            return buffer;
+        } catch (error) {
+            console.error("TTS error:", error);
+            throw error;
+        }
+    }
 }
 
 module.exports = OpenAIService;

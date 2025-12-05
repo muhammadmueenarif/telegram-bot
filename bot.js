@@ -7,6 +7,9 @@ const OpenAIService = require("./services/openaiService");
 const MemoryService = require("./services/memoryService");
 const { randomDelay } = require("./utils/helpers");
 const fs = require("fs");
+const https = require("https");
+const path = require("path");
+const os = require("os");
 
 class Bot {
     constructor(botToken, openaiApiKey) {
@@ -52,9 +55,6 @@ class Bot {
                     try {
                         // Download the voice file
                         const fileLink = await ctx.telegram.getFileLink(voice.file_id);
-                        const https = require('https');
-                        const path = require('path');
-                        const os = require('os');
 
                         // Download to temp file
                         const tempFilePath = path.join(os.tmpdir(), `voice_${userId}_${Date.now()}.ogg`);
@@ -86,24 +86,46 @@ class Bot {
                         const FirebaseService = require("./services/firebaseService");
                         await FirebaseService.saveChatMessage(userId, "user", `[Voice message] ${transcription}`);
 
-                        // Process transcription as text message using text handler
-                        const fakeTextCtx = {
-                            ...ctx,
-                            from: ctx.from,
-                            message: {
-                                message_id: ctx.message.message_id,
-                                from: ctx.from,
-                                chat: ctx.message.chat,
-                                date: ctx.message.date,
-                                text: transcription
-                            },
-                            sendChatAction: ctx.sendChatAction.bind(ctx),
-                            reply: ctx.reply.bind(ctx),
-                            replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
-                            replyWithVideo: ctx.replyWithVideo.bind(ctx)
-                        };
+                        // Load conversation history
+                        if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                            await this.memoryService.loadUserHistory(userId, FirebaseService);
+                        }
+                        this.memoryService.initializeUser(userId);
 
-                        await this.textHandler.handleTextMessage(fakeTextCtx);
+                        // Add user message to memory
+                        this.memoryService.addMessage(userId, "user", transcription);
+
+                        // Get AI response
+                        const { getPersona } = require("./utils/constants");
+                        const persona = getPersona();
+                        const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
+
+                        const textResponse = await this.openaiService.getChatCompletion(persona, messagesToSend);
+
+                        // Add polite message encouraging text chat
+                        const fullResponse = `${textResponse}\n\nBut babe, I'd love it if you could text me instead! It's so much easier to chat that way 💕`;
+
+                        console.log(`[${userId}] 🤖 Text response: ${fullResponse}`);
+
+                        // Convert response to speech
+                        console.log(`[${userId}] 🎙️ Converting to speech...`);
+                        const audioBuffer = await this.openaiService.textToSpeech(fullResponse);
+
+                        // Save audio to temp file
+                        const outputPath = path.join(os.tmpdir(), `response_${userId}_${Date.now()}.mp3`);
+                        fs.writeFileSync(outputPath, audioBuffer);
+
+                        console.log(`[${userId}] 🎵 Sending voice response...`);
+
+                        // Send voice message
+                        await ctx.replyWithVoice({ source: fs.createReadStream(outputPath) });
+
+                        // Save response to memory and Firebase
+                        this.memoryService.addMessage(userId, "assistant", textResponse);
+                        await FirebaseService.saveChatMessage(userId, "assistant", `[Voice reply] ${textResponse}`);
+
+                        // Clean up temp audio file
+                        fs.unlinkSync(outputPath);
 
                     } catch (transcriptionError) {
                         console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
