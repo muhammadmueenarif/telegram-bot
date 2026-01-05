@@ -89,55 +89,79 @@ class Bot {
                 const businessConnectionId = businessMessage.business_connection_id;
                 const userId = businessMessage.from.id;
                 const text = businessMessage.text;
+                const photo = businessMessage.photo;
+                const voice = businessMessage.voice;
+                const document = businessMessage.document;
 
-                console.log(`[Business Message] From: ${userId}, Text: ${text}, Connection: ${businessConnectionId}`);
+                console.log(`[Business Message] From: ${userId}, Text: ${text || 'none'}, Photo: ${photo ? 'yes' : 'no'}, Voice: ${voice ? 'yes' : 'no'}, Document: ${document ? 'yes' : 'no'}, Connection: ${businessConnectionId}`);
 
-                // Handle business message the same way as regular text messages
-                // but use the business_connection_id when replying
-                if (text) {
-                    // Create a fake context object that mimics regular message context
-                    // so we can use textHandler which has all the content sending logic
-                    const fakeCtx = {
-                        ...ctx,
+                // Create a fake context object that mimics regular message context
+                // so we can use handlers which have all the logic
+                const fakeCtx = {
+                    ...ctx,
+                    from: businessMessage.from,
+                    message: {
+                        text: text,
+                        photo: photo,
+                        voice: voice,
+                        document: document,
+                        caption: businessMessage.caption,
                         from: businessMessage.from,
-                        message: {
-                            text: text,
-                            from: businessMessage.from,
-                            chat: businessMessage.chat,
-                            message_id: businessMessage.message_id
-                        },
                         chat: businessMessage.chat,
-                        business_connection_id: businessConnectionId,
-                        update: {
-                            ...ctx.update,
-                            business_message: businessMessage
-                        },
-                        reply: async (text, extra = {}) => {
-                            return ctx.telegram.sendMessage(businessMessage.chat.id, text, {
-                                business_connection_id: businessConnectionId,
-                                ...extra
-                            });
-                        },
-                        replyWithPhoto: async (photo, extra = {}) => {
-                            return ctx.telegram.sendPhoto(businessMessage.chat.id, photo, {
-                                business_connection_id: businessConnectionId,
-                                ...extra
-                            });
-                        },
-                        replyWithVideo: async (video, extra = {}) => {
-                            return ctx.telegram.sendVideo(businessMessage.chat.id, video, {
-                                business_connection_id: businessConnectionId,
-                                ...extra
-                            });
-                        },
-                        sendChatAction: async (action) => {
-                            return ctx.telegram.sendChatAction(businessMessage.chat.id, action, {
-                                business_connection_id: businessConnectionId
-                            });
-                        },
-                        telegram: ctx.telegram
-                    };
+                        message_id: businessMessage.message_id
+                    },
+                    chat: businessMessage.chat,
+                    business_connection_id: businessConnectionId,
+                    update: {
+                        ...ctx.update,
+                        business_message: businessMessage
+                    },
+                    reply: async (text, extra = {}) => {
+                        return ctx.telegram.sendMessage(businessMessage.chat.id, text, {
+                            business_connection_id: businessConnectionId,
+                            ...extra
+                        });
+                    },
+                    replyWithPhoto: async (photo, extra = {}) => {
+                        return ctx.telegram.sendPhoto(businessMessage.chat.id, photo, {
+                            business_connection_id: businessConnectionId,
+                            ...extra
+                        });
+                    },
+                    replyWithVideo: async (video, extra = {}) => {
+                        return ctx.telegram.sendVideo(businessMessage.chat.id, video, {
+                            business_connection_id: businessConnectionId,
+                            ...extra
+                        });
+                    },
+                    replyWithVoice: async (voice, extra = {}) => {
+                        return ctx.telegram.sendVoice(businessMessage.chat.id, voice, {
+                            business_connection_id: businessConnectionId,
+                            ...extra
+                        });
+                    },
+                    sendChatAction: async (action) => {
+                        return ctx.telegram.sendChatAction(businessMessage.chat.id, action, {
+                            business_connection_id: businessConnectionId
+                        });
+                    },
+                    telegram: ctx.telegram
+                };
 
+                // Handle different message types
+                if (photo) {
+                    console.log(`[Business Photo] User ${userId} sent a photo`);
+                    // Use the photo handler logic directly
+                    await this.handleBusinessPhoto(fakeCtx, userId, photo, businessMessage.caption);
+                } else if (voice) {
+                    console.log(`[Business Voice] User ${userId} sent a voice message`);
+                    // Use the voice handler logic directly
+                    await this.handleBusinessVoice(fakeCtx, userId, voice);
+                } else if (document && document.mime_type && document.mime_type.startsWith("image/")) {
+                    console.log(`[Business Document] User ${userId} sent an image document`);
+                    // Use the document handler logic directly
+                    await this.handleBusinessDocument(fakeCtx, userId, document, businessMessage.caption);
+                } else if (text) {
                     // Use textHandler to process the message (includes content detection and sending)
                     await this.textHandler.handleTextMessage(fakeCtx);
                 }
@@ -205,37 +229,26 @@ class Bot {
                         // Add user message to memory
                         this.memoryService.addMessage(userId, "user", transcription);
 
-                        // Get AI response
+                        // Get AI response using latest 20 messages for context
                         const { getPersona } = require("./utils/constants");
                         const persona = getPersona();
-                        const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 
-                        const textResponse = await this.openaiService.getChatCompletion(persona, messagesToSend);
+                        // Get last 20 messages for better context understanding
+                        const allMessages = this.memoryService.getUserMessages(userId);
+                        const last20Messages = allMessages.slice(-20);
 
-                        // Add polite message encouraging text chat
-                        const fullResponse = `${textResponse}\n\nBut babe, I'd love it if you could text me instead! It's so much easier to chat that way 💕`;
+                        console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
 
-                        console.log(`[${userId}] 🤖 Text response: ${fullResponse}`);
+                        const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
 
-                        // Convert response to speech
-                        console.log(`[${userId}] 🎙️ Converting to speech...`);
-                        const audioBuffer = await this.openaiService.textToSpeech(fullResponse);
+                        console.log(`[${userId}] 🤖 Text response: ${textResponse}`);
 
-                        // Save audio to temp file
-                        const outputPath = path.join(os.tmpdir(), `response_${userId}_${Date.now()}.mp3`);
-                        fs.writeFileSync(outputPath, audioBuffer);
-
-                        console.log(`[${userId}] 🎵 Sending voice response...`);
-
-                        // Send voice message
-                        await ctx.replyWithVoice({ source: fs.createReadStream(outputPath) });
+                        // Send text response (no voice conversion)
+                        await ctx.reply(textResponse);
 
                         // Save response to memory and Firebase
                         this.memoryService.addMessage(userId, "assistant", textResponse);
-                        await FirebaseService.saveChatMessage(userId, "assistant", `[Voice reply] ${textResponse}`);
-
-                        // Clean up temp audio file
-                        fs.unlinkSync(outputPath);
+                        await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
 
                     } catch (transcriptionError) {
                         console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
@@ -282,26 +295,39 @@ class Bot {
 
                     // Save to Firebase
                     const FirebaseService = require("./services/firebaseService");
-                    await FirebaseService.saveChatMessage(userId, "user", caption ? `[Photo] ${caption}` : "[Photo sent]");
+                    const userMessage = caption ? `[Photo] ${caption}` : "[Photo sent]";
+                    await FirebaseService.saveChatMessage(userId, "user", userMessage);
 
-                    // Use the image analysis to generate a contextual response
-                    const fakeTextCtx = {
-                        ...ctx,
-                        from: ctx.from,
-                        message: {
-                            message_id: ctx.message.message_id,
-                            from: ctx.from,
-                            chat: ctx.message.chat,
-                            date: ctx.message.date,
-                            text: `[User sent a photo${caption ? ` with caption: "${caption}"` : ''}. Image contains: ${imageAnalysis}]`
-                        },
-                        sendChatAction: ctx.sendChatAction.bind(ctx),
-                        reply: ctx.reply.bind(ctx),
-                        replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
-                        replyWithVideo: ctx.replyWithVideo.bind(ctx)
-                    };
+                    // Load conversation history
+                    if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                        await this.memoryService.loadUserHistory(userId, FirebaseService);
+                    }
+                    this.memoryService.initializeUser(userId);
 
-                    await this.textHandler.handleTextMessage(fakeTextCtx);
+                    // Add user message with image context to memory
+                    const contextualMessage = `[User sent a photo${caption ? ` with caption: "${caption}"` : ''}. Image analysis: ${imageAnalysis}]`;
+                    this.memoryService.addMessage(userId, "user", contextualMessage);
+
+                    // Get AI response using latest 20 messages for context
+                    const { getPersona } = require("./utils/constants");
+                    const persona = getPersona();
+
+                    // Get last 20 messages for better context understanding
+                    const allMessages = this.memoryService.getUserMessages(userId);
+                    const last20Messages = allMessages.slice(-20);
+
+                    console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+                    const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+                    console.log(`[${userId}] 🤖 Response: ${textResponse}`);
+
+                    // Send text response
+                    await ctx.reply(textResponse);
+
+                    // Save response to memory and Firebase
+                    this.memoryService.addMessage(userId, "assistant", textResponse);
+                    await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
 
                 } catch (visionError) {
                     console.error(`[${userId}] Error analyzing image:`, visionError);
@@ -347,26 +373,39 @@ class Bot {
 
                         // Save to Firebase
                         const FirebaseService = require("./services/firebaseService");
-                        await FirebaseService.saveChatMessage(userId, "user", caption ? `[Image file] ${caption}` : "[Image file sent]");
+                        const userMessage = caption ? `[Image file] ${caption}` : "[Image file sent]";
+                        await FirebaseService.saveChatMessage(userId, "user", userMessage);
 
-                        // Use the image analysis to generate a contextual response
-                        const fakeTextCtx = {
-                            ...ctx,
-                            from: ctx.from,
-                            message: {
-                                message_id: ctx.message.message_id,
-                                from: ctx.from,
-                                chat: ctx.message.chat,
-                                date: ctx.message.date,
-                                text: `[User sent an image${caption ? ` with caption: "${caption}"` : ''}. Image contains: ${imageAnalysis}]`
-                            },
-                            sendChatAction: ctx.sendChatAction.bind(ctx),
-                            reply: ctx.reply.bind(ctx),
-                            replyWithPhoto: ctx.replyWithPhoto.bind(ctx),
-                            replyWithVideo: ctx.replyWithVideo.bind(ctx)
-                        };
+                        // Load conversation history
+                        if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                            await this.memoryService.loadUserHistory(userId, FirebaseService);
+                        }
+                        this.memoryService.initializeUser(userId);
 
-                        await this.textHandler.handleTextMessage(fakeTextCtx);
+                        // Add user message with image context to memory
+                        const contextualMessage = `[User sent an image file${caption ? ` with caption: "${caption}"` : ''}. Image analysis: ${imageAnalysis}]`;
+                        this.memoryService.addMessage(userId, "user", contextualMessage);
+
+                        // Get AI response using latest 20 messages for context
+                        const { getPersona } = require("./utils/constants");
+                        const persona = getPersona();
+
+                        // Get last 20 messages for better context understanding
+                        const allMessages = this.memoryService.getUserMessages(userId);
+                        const last20Messages = allMessages.slice(-20);
+
+                        console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+                        const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+                        console.log(`[${userId}] 🤖 Response: ${textResponse}`);
+
+                        // Send text response
+                        await ctx.reply(textResponse);
+
+                        // Save response to memory and Firebase
+                        this.memoryService.addMessage(userId, "assistant", textResponse);
+                        await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
 
                     } catch (visionError) {
                         console.error(`[${userId}] Error analyzing image document:`, visionError);
@@ -488,6 +527,226 @@ class Bot {
                 await ctx.reply("Sorry babe, something went wrong with the mini app... try again? 😅");
             }
         });
+    }
+
+    async handleBusinessPhoto(ctx, userId, photo, caption) {
+        try {
+            const highResPhoto = photo[photo.length - 1];
+            console.log(`[${userId}] 📸 Business photo received${caption ? ` with caption: ${caption}` : ''}`);
+
+            await ctx.sendChatAction("typing");
+
+            try {
+                // Get photo file link
+                const fileLink = await ctx.telegram.getFileLink(highResPhoto.file_id);
+                console.log(`[${userId}] 🔍 Analyzing image...`);
+
+                // Analyze image with OpenAI Vision
+                const prompt = caption
+                    ? `The user sent you this image with the message: "${caption}". Respond naturally as Nyla, acknowledging both the image and their message.`
+                    : "Describe what you see in this image and respond naturally as Nyla.";
+
+                const imageAnalysis = await this.openaiService.analyzeImage(fileLink.href, prompt);
+
+                console.log(`[${userId}] 🤖 Vision analysis: ${imageAnalysis}`);
+
+                // Save to Firebase
+                const FirebaseService = require("./services/firebaseService");
+                const userMessage = caption ? `[Photo] ${caption}` : "[Photo sent]";
+                await FirebaseService.saveChatMessage(userId, "user", userMessage);
+
+                // Load conversation history
+                if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                    await this.memoryService.loadUserHistory(userId, FirebaseService);
+                }
+                this.memoryService.initializeUser(userId);
+
+                // Add user message with image context to memory
+                const contextualMessage = `[User sent a photo${caption ? ` with caption: "${caption}"` : ''}. Image analysis: ${imageAnalysis}]`;
+                this.memoryService.addMessage(userId, "user", contextualMessage);
+
+                // Get AI response using latest 20 messages for context
+                const { getPersona } = require("./utils/constants");
+                const persona = getPersona();
+
+                // Get last 20 messages for better context understanding
+                const allMessages = this.memoryService.getUserMessages(userId);
+                const last20Messages = allMessages.slice(-20);
+
+                console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+                const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+                console.log(`[${userId}] 🤖 Response: ${textResponse}`);
+
+                // Send text response
+                await ctx.reply(textResponse);
+
+                // Save response to memory and Firebase
+                this.memoryService.addMessage(userId, "assistant", textResponse);
+                await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+
+            } catch (visionError) {
+                console.error(`[${userId}] Error analyzing image:`, visionError);
+                await randomDelay();
+                await ctx.reply("Omg you're so cute! 😍 Send more?");
+            }
+        } catch (error) {
+            console.error("Error handling business photo:", error);
+        }
+    }
+
+    async handleBusinessVoice(ctx, userId, voice) {
+        try {
+            const duration = voice.duration;
+            console.log(`[${userId}] 🎤 Business voice message received (${duration}s)`);
+
+            if (duration < 60) {
+                await ctx.sendChatAction("typing");
+
+                try {
+                    // Download the voice file
+                    const fileLink = await ctx.telegram.getFileLink(voice.file_id);
+
+                    // Download to temp file
+                    const tempFilePath = path.join(os.tmpdir(), `voice_${userId}_${Date.now()}.ogg`);
+                    const fileStream = fs.createWriteStream(tempFilePath);
+
+                    await new Promise((resolve, reject) => {
+                        https.get(fileLink.href, (response) => {
+                            response.pipe(fileStream);
+                            fileStream.on('finish', () => {
+                                fileStream.close();
+                                resolve();
+                            });
+                        }).on('error', reject);
+                    });
+
+                    console.log(`[${userId}] 📥 Voice file downloaded, transcribing...`);
+
+                    // Transcribe using Whisper
+                    const transcription = await this.openaiService.transcribeAudio(
+                        fs.createReadStream(tempFilePath)
+                    );
+
+                    console.log(`[${userId}] 📝 Transcription: ${transcription}`);
+
+                    // Clean up temp file
+                    fs.unlinkSync(tempFilePath);
+
+                    // Save transcription to Firebase as user message
+                    const FirebaseService = require("./services/firebaseService");
+                    await FirebaseService.saveChatMessage(userId, "user", `[Voice message] ${transcription}`);
+
+                    // Load conversation history
+                    if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                        await this.memoryService.loadUserHistory(userId, FirebaseService);
+                    }
+                    this.memoryService.initializeUser(userId);
+
+                    // Add user message to memory
+                    this.memoryService.addMessage(userId, "user", transcription);
+
+                    // Get AI response using latest 20 messages for context
+                    const { getPersona } = require("./utils/constants");
+                    const persona = getPersona();
+
+                    // Get last 20 messages for better context understanding
+                    const allMessages = this.memoryService.getUserMessages(userId);
+                    const last20Messages = allMessages.slice(-20);
+
+                    console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+                    const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+                    console.log(`[${userId}] 🤖 Text response: ${textResponse}`);
+
+                    // Send text response (no voice conversion)
+                    await ctx.reply(textResponse);
+
+                    // Save response to memory and Firebase
+                    this.memoryService.addMessage(userId, "assistant", textResponse);
+                    await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+
+                } catch (transcriptionError) {
+                    console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
+                    const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                    await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+                }
+            } else {
+                console.log(`[${userId}] Voice too long (${duration}s), sending ring.mp3`);
+                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
+            }
+        } catch (error) {
+            console.error("Error handling business voice:", error);
+        }
+    }
+
+    async handleBusinessDocument(ctx, userId, document, caption) {
+        try {
+            console.log(`[${userId}] 📎 Business document received: ${document.file_name}`);
+
+            await ctx.sendChatAction("typing");
+
+            try {
+                // Get document file link
+                const fileLink = await ctx.telegram.getFileLink(document.file_id);
+                console.log(`[${userId}] 🔍 Analyzing image document...`);
+
+                // Analyze image with OpenAI Vision
+                const prompt = caption
+                    ? `The user sent you this image with the message: "${caption}". Respond naturally as Nyla, acknowledging both the image and their message.`
+                    : "Describe what you see in this image and respond naturally as Nyla.";
+
+                const imageAnalysis = await this.openaiService.analyzeImage(fileLink.href, prompt);
+
+                console.log(`[${userId}] 🤖 Vision analysis: ${imageAnalysis}`);
+
+                // Save to Firebase
+                const FirebaseService = require("./services/firebaseService");
+                const userMessage = caption ? `[Image file] ${caption}` : "[Image file sent]";
+                await FirebaseService.saveChatMessage(userId, "user", userMessage);
+
+                // Load conversation history
+                if (!this.memoryService.userMemoryLoaded[userId] || !this.memoryService.userMemory[userId] || this.memoryService.userMemory[userId].length === 0) {
+                    await this.memoryService.loadUserHistory(userId, FirebaseService);
+                }
+                this.memoryService.initializeUser(userId);
+
+                // Add user message with image context to memory
+                const contextualMessage = `[User sent an image file${caption ? ` with caption: "${caption}"` : ''}. Image analysis: ${imageAnalysis}]`;
+                this.memoryService.addMessage(userId, "user", contextualMessage);
+
+                // Get AI response using latest 20 messages for context
+                const { getPersona } = require("./utils/constants");
+                const persona = getPersona();
+
+                // Get last 20 messages for better context understanding
+                const allMessages = this.memoryService.getUserMessages(userId);
+                const last20Messages = allMessages.slice(-20);
+
+                console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+                const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+                console.log(`[${userId}] 🤖 Response: ${textResponse}`);
+
+                // Send text response
+                await ctx.reply(textResponse);
+
+                // Save response to memory and Firebase
+                this.memoryService.addMessage(userId, "assistant", textResponse);
+                await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+
+            } catch (visionError) {
+                console.error(`[${userId}] Error analyzing image document:`, visionError);
+                await randomDelay();
+                await ctx.reply("Omg you're so cute! 😍 Send more?");
+            }
+        } catch (error) {
+            console.error("Error handling business document:", error);
+        }
     }
 
     setupErrorHandling() {
