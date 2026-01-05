@@ -76,7 +76,7 @@ IMPORTANT: Return ONLY 1 content ID in the array, not multiple!`;
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userMessage }
                 ],
-                max_tokens: 200,
+                max_tokens: 16000,
                 temperature: 0.3,
                 response_format: { type: "json_object" }
             });

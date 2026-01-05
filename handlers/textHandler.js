@@ -288,20 +288,27 @@ class TextHandler {
                 return;
             }
 
-            // Use ContentMatcher to find best matching paid content
-            const matchResult = await this.contentMatcher.matchContent(userMessage, paidContent, false);
-            
+            // Get user's sent content history to avoid repeating
+            const sentContentUrls = await FirebaseService.getUserSentContentUrls(userId);
+            const unsentPaidContent = paidContent.filter(c => !sentContentUrls.has(c.fileUrl));
+
+            // If all paid content has been sent, reset and use all paid content again
+            const availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+
+            // Use ContentMatcher to find best matching paid content from unsent items
+            const matchResult = await this.contentMatcher.matchContent(userMessage, availablePaidContent, false);
+
             let contentToSend = null;
             if (matchResult.matched && matchResult.contentIds.length > 0) {
-                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, paidContent);
+                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availablePaidContent);
                 if (matchedContent.length > 0) {
                     contentToSend = matchedContent[0];
                 }
             }
-            
+
             // Fallback to random if no match
             if (!contentToSend) {
-                contentToSend = paidContent[Math.floor(Math.random() * paidContent.length)];
+                contentToSend = availablePaidContent[Math.floor(Math.random() * availablePaidContent.length)];
             }
 
             // Send paid content as locked media with natural message
@@ -519,29 +526,35 @@ class TextHandler {
                 // No free content, send paid content as locked
                 const paidContent = allContent.filter(c => !c.isFree && c.price > 0);
                 if (paidContent.length > 0) {
-                    const matchResult = await this.contentMatcher.matchContent(userMessage, paidContent, false);
+                    // Get user's sent content history to avoid repeating paid content
+                    const unsentPaidContent = paidContent.filter(c => !sentContentUrls.has(c.fileUrl));
+
+                    // If all paid content has been sent, reset and use all paid content again
+                    const availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+
+                    const matchResult = await this.contentMatcher.matchContent(userMessage, availablePaidContent, false);
                     let contentToSend = null;
-                    
+
                     if (matchResult.matched && matchResult.contentIds.length > 0) {
-                        const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, paidContent);
+                        const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availablePaidContent);
                         if (matchedContent.length > 0) {
                             contentToSend = matchedContent[0];
                         }
                     }
-                    
+
                     if (!contentToSend) {
-                        contentToSend = paidContent[Math.floor(Math.random() * paidContent.length)];
+                        contentToSend = availablePaidContent[Math.floor(Math.random() * availablePaidContent.length)];
                     }
 
                     // Send AI response first, then locked content
                     const persona = getPersona();
                     const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
                     const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
-                    
+
                     this.memoryService.addMessage(userId, "assistant", response);
                     await FirebaseService.saveChatMessage(userId, "assistant", response);
                     await ctx.reply(response);
-                    
+
                     await randomDelay();
                     await this.sendContent(ctx, userId, contentToSend);
                     return;

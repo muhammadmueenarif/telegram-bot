@@ -79,7 +79,7 @@ class OpenAIService {
                         ]
                     }
                 ],
-                max_tokens: 300,
+                max_tokens: 16000,
             });
             return response.choices[0].message.content;
         } catch (error) {

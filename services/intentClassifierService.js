@@ -81,7 +81,7 @@ Respond in JSON format ONLY:
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userMessage }
                 ],
-                max_tokens: 150,
+                max_tokens: 16000,
                 temperature: 0.2, // Low temperature for consistent classification
                 response_format: { type: "json_object" }
             });
