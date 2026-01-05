@@ -36,6 +36,116 @@ class Bot {
         this.bot.on("pre_checkout_query", PaymentHandler.handlePreCheckout);
         this.bot.on("successful_payment", (ctx) => PaymentHandler.handleSuccessfulPayment(ctx, this.bot));
 
+        // Paid media purchase handler
+        this.bot.on("purchased_paid_media", async (ctx) => {
+            try {
+                const userId = ctx.from?.id;
+                const paidMediaInfo = ctx.update.purchased_paid_media;
+
+                console.log(`[${userId}] 💰 User purchased paid media:`, paidMediaInfo);
+
+                // Optional: Send thank you message
+                await ctx.reply("Thanks for your purchase babe! 😘💕 Enjoy the content!");
+
+            } catch (error) {
+                console.error("Error handling purchased paid media:", error);
+            }
+        });
+
+        // Telegram Business handlers
+        this.bot.on("business_connection", async (ctx) => {
+            try {
+                // Business connection is in ctx.update.business_connection
+                const connection = ctx.update.business_connection;
+                if (!connection) {
+                    console.log("[Business] Warning: business_connection is undefined");
+                    return;
+                }
+
+                const userId = connection.user.id;
+                const isActive = connection.is_enabled;
+
+                console.log(`[Business] ${isActive ? '✅ Connected' : '❌ Disconnected'} - User: ${userId}, Connection ID: ${connection.id}`);
+
+                if (isActive) {
+                    console.log(`[Business] User ${userId} connected bot to their business account`);
+                } else {
+                    console.log(`[Business] User ${userId} disconnected bot from their business account`);
+                }
+            } catch (error) {
+                console.error("Error handling business connection:", error);
+            }
+        });
+
+        this.bot.on("business_message", async (ctx) => {
+            try {
+                // Business message is in ctx.update.business_message
+                const businessMessage = ctx.update.business_message;
+                if (!businessMessage) {
+                    console.log("[Business Message] Warning: business_message is undefined");
+                    return;
+                }
+
+                const businessConnectionId = businessMessage.business_connection_id;
+                const userId = businessMessage.from.id;
+                const text = businessMessage.text;
+
+                console.log(`[Business Message] From: ${userId}, Text: ${text}, Connection: ${businessConnectionId}`);
+
+                // Handle business message the same way as regular text messages
+                // but use the business_connection_id when replying
+                if (text) {
+                    // Create a fake context object that mimics regular message context
+                    // so we can use textHandler which has all the content sending logic
+                    const fakeCtx = {
+                        ...ctx,
+                        from: businessMessage.from,
+                        message: {
+                            text: text,
+                            from: businessMessage.from,
+                            chat: businessMessage.chat,
+                            message_id: businessMessage.message_id
+                        },
+                        chat: businessMessage.chat,
+                        business_connection_id: businessConnectionId,
+                        update: {
+                            ...ctx.update,
+                            business_message: businessMessage
+                        },
+                        reply: async (text, extra = {}) => {
+                            return ctx.telegram.sendMessage(businessMessage.chat.id, text, {
+                                business_connection_id: businessConnectionId,
+                                ...extra
+                            });
+                        },
+                        replyWithPhoto: async (photo, extra = {}) => {
+                            return ctx.telegram.sendPhoto(businessMessage.chat.id, photo, {
+                                business_connection_id: businessConnectionId,
+                                ...extra
+                            });
+                        },
+                        replyWithVideo: async (video, extra = {}) => {
+                            return ctx.telegram.sendVideo(businessMessage.chat.id, video, {
+                                business_connection_id: businessConnectionId,
+                                ...extra
+                            });
+                        },
+                        sendChatAction: async (action) => {
+                            return ctx.telegram.sendChatAction(businessMessage.chat.id, action, {
+                                business_connection_id: businessConnectionId
+                            });
+                        },
+                        telegram: ctx.telegram
+                    };
+
+                    // Use textHandler to process the message (includes content detection and sending)
+                    await this.textHandler.handleTextMessage(fakeCtx);
+                }
+            } catch (error) {
+                console.error("Error handling business message:", error);
+            }
+        });
+
         // Text messages
         this.bot.on("text", (ctx) => this.textHandler.handleTextMessage(ctx));
 
@@ -405,6 +515,22 @@ class Bot {
             try {
                 console.log(`🔄 Attempting to start bot... (Attempt ${retries + 1}/${maxRetries})`);
 
+                // Before launching, ensure no webhook is set and close any existing polling
+                try {
+                    await this.bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                    console.log("🧹 Cleaned up any existing webhook");
+                } catch (webhookError) {
+                    // Ignore webhook errors, might not have one set
+                    console.log("ℹ️ No webhook to clean up (this is fine)");
+                }
+
+                // If this is a retry after a 409 error, wait a bit longer to let the other instance finish
+                if (retries > 0) {
+                    const extendedDelay = retryDelay * 2; // Wait 10 seconds for 409 conflicts
+                    console.log(`⏳ Waiting ${extendedDelay / 1000} seconds for any existing connection to close...`);
+                    await new Promise(resolve => setTimeout(resolve, extendedDelay));
+                }
+
                 await this.bot.launch({
                     polling: BOT_CONFIG.polling
                 });
@@ -415,19 +541,41 @@ class Bot {
 
             } catch (error) {
                 retries++;
-                console.error(`❌ Error starting bot (Attempt ${retries}/${maxRetries}):`, error.message);
+                const isConflictError = error.message && (
+                    error.message.includes('409') || 
+                    error.message.includes('Conflict') ||
+                    error.message.includes('terminated by other getUpdates')
+                );
+
+                if (isConflictError) {
+                    console.error(`❌ Error starting bot (Attempt ${retries}/${maxRetries}): 409 Conflict - Another bot instance is running`);
+                    console.error("💡 Solution: Make sure only ONE instance of the bot is running.");
+                    console.error("   - Check for other terminal windows running the bot");
+                    console.error("   - Check for background processes: ps aux | grep node");
+                    console.error("   - Kill any existing instances before starting a new one");
+                } else {
+                    console.error(`❌ Error starting bot (Attempt ${retries}/${maxRetries}):`, error.message);
+                }
 
                 if (retries >= maxRetries) {
                     console.error("❌ Failed to start bot after multiple attempts. Please check:");
-                    console.error("   1. Your internet connection");
-                    console.error("   2. BOT_TOKEN in .env file is correct");
-                    console.error("   3. Telegram API is accessible from your network");
-                    console.error("   4. Firewall/proxy settings");
+                    if (isConflictError) {
+                        console.error("   ⚠️  CONFLICT ERROR: Another bot instance is already running!");
+                        console.error("   → Stop all other bot instances and try again");
+                        console.error("   → Use: pkill -f 'node.*index.js' or kill the process manually");
+                    } else {
+                        console.error("   1. Your internet connection");
+                        console.error("   2. BOT_TOKEN in .env file is correct");
+                        console.error("   3. Telegram API is accessible from your network");
+                        console.error("   4. Firewall/proxy settings");
+                    }
                     process.exit(1);
                 }
 
-                console.log(`⏳ Retrying in ${retryDelay / 1000} seconds...`);
-                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                // For conflict errors, wait longer before retrying
+                const waitTime = isConflictError ? retryDelay * 2 : retryDelay;
+                console.log(`⏳ Retrying in ${waitTime / 1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
             }
         }
     }

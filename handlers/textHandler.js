@@ -130,10 +130,68 @@ class TextHandler {
 
     async handleFreeContentRequest(ctx, userId, userMessage, sentContentUrls) {
         try {
-            // Ask user: Special (paid) or Just for fun (free)?
-            const botReply = "Do you want something special or just for fun babe? 💕";
+            // Get all content from Firebase
+            const allContent = await FirebaseService.getAllContent();
+            
+            // Filter for free content only
+            const freeContent = allContent.filter(c => c.isFree === true);
+            const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
+
+            if (unsentFreeContent.length === 0) {
+                // No free content available, send paid content as locked
+                const paidContent = allContent.filter(c => !c.isFree && c.price > 0);
+                if (paidContent.length > 0) {
+                    // Use ContentMatcher to find best match
+                    const matchResult = await this.contentMatcher.matchContent(userMessage, paidContent, false);
+                    if (matchResult.matched && matchResult.contentIds.length > 0) {
+                        const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, paidContent);
+                        if (matchedContent.length > 0) {
+                            const botReply = "I just sent you something special, didn't I? What more are you looking for? 😘";
+                            await ctx.reply(botReply);
+                            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                            await randomDelay();
+                            await this.sendContent(ctx, userId, matchedContent[0]);
+                            return;
+                        }
+                    }
+                    // Fallback: send random paid content
+                    const randomPaid = paidContent[Math.floor(Math.random() * paidContent.length)];
+                    const botReply = "I just sent you something special, didn't I? What more are you looking for? 😘";
+                    await ctx.reply(botReply);
+                    await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                    await randomDelay();
+                    await this.sendContent(ctx, userId, randomPaid);
+                    return;
+                }
+                
+                const botReply = "You've already seen all my free content babe! 💕 Want to see my exclusive stuff? 😘";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                return;
+            }
+
+            // Use ContentMatcher to find best matching free content
+            const matchResult = await this.contentMatcher.matchContent(userMessage, unsentFreeContent, true);
+            
+            let contentToSend = null;
+            if (matchResult.matched && matchResult.contentIds.length > 0) {
+                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, unsentFreeContent);
+                if (matchedContent.length > 0) {
+                    contentToSend = matchedContent[0];
+                }
+            }
+            
+            // Fallback to random if no match
+            if (!contentToSend) {
+                contentToSend = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+            }
+
+            // Send content immediately with a natural message
+            const botReply = "Here you go babe! 😍💕";
             await ctx.reply(botReply);
             await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+            await randomDelay();
+            await this.sendContent(ctx, userId, contentToSend);
 
         } catch (error) {
             console.error(`[${userId}] Error handling free content request:`, error);
@@ -217,10 +275,49 @@ class TextHandler {
     }
 
     async handlePaidContentRequest(ctx, userId, userMessage) {
-        const botReply = "I have so much exclusive content for you babe! 💕✨ Check out my packages below!";
-        await ctx.reply(botReply);
-        await FirebaseService.saveChatMessage(userId, "assistant", botReply);
-        await this.openMiniApp(ctx, userId);
+        try {
+            // Get all paid content from Firebase
+            const allContent = await FirebaseService.getAllContent();
+            const paidContent = allContent.filter(c => !c.isFree && c.price > 0);
+
+            if (paidContent.length === 0) {
+                const botReply = "I have so much exclusive content for you babe! 💕✨ Check out my packages below!";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                await this.openMiniApp(ctx, userId);
+                return;
+            }
+
+            // Use ContentMatcher to find best matching paid content
+            const matchResult = await this.contentMatcher.matchContent(userMessage, paidContent, false);
+            
+            let contentToSend = null;
+            if (matchResult.matched && matchResult.contentIds.length > 0) {
+                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, paidContent);
+                if (matchedContent.length > 0) {
+                    contentToSend = matchedContent[0];
+                }
+            }
+            
+            // Fallback to random if no match
+            if (!contentToSend) {
+                contentToSend = paidContent[Math.floor(Math.random() * paidContent.length)];
+            }
+
+            // Send paid content as locked media with natural message
+            const botReply = "I have a whole collection of premium pics and videos for you. What kind of stuff are you looking for? 😘";
+            await ctx.reply(botReply);
+            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+            await randomDelay();
+            await this.sendContent(ctx, userId, contentToSend);
+
+        } catch (error) {
+            console.error(`[${userId}] Error handling paid content request:`, error);
+            const botReply = "I have so much exclusive content for you babe! 💕✨ Check out my packages below!";
+            await ctx.reply(botReply);
+            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+            await this.openMiniApp(ctx, userId);
+        }
     }
 
 
@@ -248,28 +345,120 @@ class TextHandler {
             await randomDelay();
         }
 
-        if (content.type === "video") {
-            await ctx.replyWithVideo(content.fileUrl, {
-                caption: content.title || "Just for you babe 😘"
-            });
-
-            await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent video", {
-                fileUrl: content.fileUrl,
-                mediaType: "video",
-                type: "video",
-                contentId: content.id
-            });
+        // If content is paid (not free), send as paid media
+        if (!content.isFree && content.price > 0) {
+            await this.sendPaidMedia(ctx, userId, content);
         } else {
-            await ctx.replyWithPhoto(content.fileUrl, {
-                caption: content.title || "Just for you babe 😘"
-            });
+            // Send free content normally
+            if (content.type === "video") {
+                await ctx.replyWithVideo(content.fileUrl, {
+                    caption: content.title || "Just for you babe 😘"
+                });
 
-            await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent photo", {
+                await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent video", {
+                    fileUrl: content.fileUrl,
+                    mediaType: "video",
+                    type: "video",
+                    contentId: content.id
+                });
+            } else {
+                await ctx.replyWithPhoto(content.fileUrl, {
+                    caption: content.title || "Just for you babe 😘"
+                });
+
+                await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent photo", {
+                    fileUrl: content.fileUrl,
+                    mediaType: "photo",
+                    type: "photo",
+                    contentId: content.id
+                });
+            }
+        }
+    }
+
+    async sendPaidMedia(ctx, userId, content) {
+        try {
+            const chatId = ctx.chat?.id || ctx.message?.chat?.id;
+            const businessConnectionId = ctx.update?.business_message?.business_connection_id || ctx.business_connection_id;
+
+            if (!chatId) {
+                console.error(`[${userId}] No chat ID found for paid media`);
+                return;
+            }
+
+            // Prepare media array for paid media
+            const media = [{
+                type: content.type === "video" ? "video" : "photo",
+                media: content.fileUrl
+            }];
+
+            // Prepare options for paid media
+            const options = {
+                caption: content.title || "Unlock to see! 😘"
+            };
+
+            // Add business_connection_id if this is a business message
+            if (businessConnectionId) {
+                options.business_connection_id = businessConnectionId;
+            }
+
+            // Use callApi to send paid media (sendPaidMedia method might not be directly available)
+            try {
+                // Try using callApi with the correct Telegram Bot API method
+                await ctx.telegram.callApi('sendPaidMedia', {
+                    chat_id: chatId,
+                    star_count: content.price,
+                    media: media,
+                    ...options
+                });
+            } catch (apiError) {
+                // If callApi fails, check if sendPaidMedia method exists directly
+                if (typeof ctx.telegram.sendPaidMedia === 'function') {
+                    try {
+                        await ctx.telegram.sendPaidMedia(
+                            chatId,
+                            content.price,
+                            media,
+                            options
+                        );
+                    } catch (directError) {
+                        throw directError;
+                    }
+                } else {
+                    // Fallback: Send as regular media with price in caption
+                    // Note: This won't create locked content, but will show the price
+                    console.log(`[${userId}] ⚠️ sendPaidMedia not available, using fallback method`);
+                    
+                    if (content.type === "video") {
+                        await ctx.replyWithVideo(content.fileUrl, {
+                            caption: `${content.title || "Unlock to see! 😘"}\n\n💰 Unlock for ⭐ ${content.price}`,
+                            ...options
+                        });
+                    } else {
+                        await ctx.replyWithPhoto(content.fileUrl, {
+                            caption: `${content.title || "Unlock to see! 😘"}\n\n💰 Unlock for ⭐ ${content.price}`,
+                            ...options
+                        });
+                    }
+                    
+                    console.log(`[${userId}] ⚠️ Sent paid media as regular media with price in caption (fallback)`);
+                }
+            }
+
+            console.log(`[${userId}] 💰 Sent paid media: ${content.title} for ${content.price} stars`);
+
+            await FirebaseService.saveChatMessage(userId, "assistant", `Sent paid ${content.type}: ${content.title}`, {
                 fileUrl: content.fileUrl,
-                mediaType: "photo",
-                type: "photo",
+                mediaType: content.type,
+                type: content.type,
+                price: content.price,
+                isPaidMedia: true,
                 contentId: content.id
             });
+
+        } catch (error) {
+            console.error(`[${userId}] Error sending paid media:`, error);
+            await ctx.reply("Sorry babe, there was an issue sending that content... try again? 😅");
         }
     }
 
@@ -284,6 +473,83 @@ class TextHandler {
             console.log(`[${userId}] ⚠️ Duplicate message detected, skipping memory add`);
         }
 
+        // Check if user message contains content request keywords
+        const contentKeywords = ['pic', 'photo', 'picture', 'image', 'video', 'vid', 'content', 'show me', 'send me', 'got any', 'let me see', 'want to see', 'premium', 'exclusive'];
+        const lowerMessage = userMessage.toLowerCase();
+        const hasContentRequest = contentKeywords.some(keyword => lowerMessage.includes(keyword));
+
+        // If content request detected, try to send content first
+        if (hasContentRequest) {
+            const sentContentUrls = await FirebaseService.getUserSentContentUrls(userId);
+            const allContent = await FirebaseService.getAllContent();
+            
+            // Try free content first
+            const freeContent = allContent.filter(c => c.isFree === true);
+            const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
+            
+            if (unsentFreeContent.length > 0) {
+                // Use ContentMatcher to find best match
+                const matchResult = await this.contentMatcher.matchContent(userMessage, unsentFreeContent, true);
+                let contentToSend = null;
+                
+                if (matchResult.matched && matchResult.contentIds.length > 0) {
+                    const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, unsentFreeContent);
+                    if (matchedContent.length > 0) {
+                        contentToSend = matchedContent[0];
+                    }
+                }
+                
+                if (!contentToSend) {
+                    contentToSend = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+                }
+
+                // Send AI response first, then content
+                const persona = getPersona();
+                const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
+                const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
+                
+                this.memoryService.addMessage(userId, "assistant", response);
+                await FirebaseService.saveChatMessage(userId, "assistant", response);
+                await ctx.reply(response);
+                
+                await randomDelay();
+                await this.sendContent(ctx, userId, contentToSend);
+                return;
+            } else {
+                // No free content, send paid content as locked
+                const paidContent = allContent.filter(c => !c.isFree && c.price > 0);
+                if (paidContent.length > 0) {
+                    const matchResult = await this.contentMatcher.matchContent(userMessage, paidContent, false);
+                    let contentToSend = null;
+                    
+                    if (matchResult.matched && matchResult.contentIds.length > 0) {
+                        const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, paidContent);
+                        if (matchedContent.length > 0) {
+                            contentToSend = matchedContent[0];
+                        }
+                    }
+                    
+                    if (!contentToSend) {
+                        contentToSend = paidContent[Math.floor(Math.random() * paidContent.length)];
+                    }
+
+                    // Send AI response first, then locked content
+                    const persona = getPersona();
+                    const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
+                    const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
+                    
+                    this.memoryService.addMessage(userId, "assistant", response);
+                    await FirebaseService.saveChatMessage(userId, "assistant", response);
+                    await ctx.reply(response);
+                    
+                    await randomDelay();
+                    await this.sendContent(ctx, userId, contentToSend);
+                    return;
+                }
+            }
+        }
+
+        // Normal AI response flow
         const persona = getPersona();
         const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 

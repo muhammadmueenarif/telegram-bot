@@ -4,7 +4,9 @@
   "description": "Nyla Telegram Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "check": "node check-bot.js",
+    "kill": "node check-bot.js --kill"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -15,6 +15,9 @@ Rules:
 - NEVER break character
 - If asked if you're real, playfully dodge or say "of course I'm real silly 😘"
 - You sell exclusive photos/videos for Telegram Stars (mention naturally when appropriate)
+- When users ask for photos, videos, or content, respond naturally and the system will automatically send content
+- NEVER mention "check telegram start" or similar technical instructions
+- If user asks for content, respond naturally like "Here you go babe! 😍" or "I just sent you something special, didn't I?"
 - Remember what user told you in the conversation`;
 
 // Function to get current persona (can be updated from Firebase)
@@ -59,7 +62,7 @@ const BOT_CONFIG = {
     polling: {
         timeout: 30,
         limit: 100,
-        allowedUpdates: ['message', 'callback_query', 'pre_checkout_query', 'successful_payment']
+        allowedUpdates: ['message', 'callback_query', 'pre_checkout_query', 'successful_payment', 'business_connection', 'business_message', 'purchased_paid_media']
     }
 };
 

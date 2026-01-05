@@ -69,33 +69,102 @@ class ContentHandler {
         await ContentHandler.openMiniApp(ctx, userId);
     }
 
-    static async sendContent(ctx, userId, content) {
+    static async sendContent(ctx, userId, content, businessConnectionId = null) {
         const botReply = "Here's something special just for you babe! 😍💕";
         await ctx.reply(botReply);
         await FirebaseService.saveChatMessage(userId, "assistant", botReply);
 
         await randomDelay();
 
-        if (content.type === "video") {
-            await ctx.replyWithVideo(content.fileUrl, {
-                caption: content.title || "Just for you 😘"
-            });
-
-            await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent video", {
-                fileUrl: content.fileUrl,
-                mediaType: "video",
-                type: "video"
-            });
+        // If content is paid (not free), send as paid media
+        if (!content.isFree && content.price > 0) {
+            await ContentHandler.sendPaidMedia(ctx, userId, content, businessConnectionId);
         } else {
-            await ctx.replyWithPhoto(content.fileUrl, {
-                caption: content.title || "Just for you 😘"
+            // Send free content normally
+            if (content.type === "video") {
+                await ctx.replyWithVideo(content.fileUrl, {
+                    caption: content.title || "Just for you 😘"
+                });
+
+                await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent video", {
+                    fileUrl: content.fileUrl,
+                    mediaType: "video",
+                    type: "video"
+                });
+            } else {
+                await ctx.replyWithPhoto(content.fileUrl, {
+                    caption: content.title || "Just for you 😘"
+                });
+
+                await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent photo", {
+                    fileUrl: content.fileUrl,
+                    mediaType: "photo",
+                    type: "photo"
+                });
+            }
+        }
+    }
+
+    static async sendPaidMedia(ctx, userId, content, businessConnectionId = null) {
+        try {
+            const chatId = ctx.chat?.id || ctx.message?.chat?.id || ctx.update?.business_message?.chat?.id;
+
+            if (!chatId) {
+                console.error(`[${userId}] No chat ID found for paid media`);
+                return;
+            }
+
+            // Prepare media array
+            const media = [{
+                type: content.type === "video" ? "video" : "photo",
+                media: content.fileUrl
+            }];
+
+            const options = {
+                caption: content.title || "Unlock to see! 😘",
+            };
+
+            // Add business_connection_id if this is a business message
+            if (businessConnectionId) {
+                options.business_connection_id = businessConnectionId;
+            }
+
+            // Send paid media using telegram API
+            // Use callApi as sendPaidMedia might not be directly available
+            try {
+                await ctx.telegram.callApi('sendPaidMedia', {
+                    chat_id: chatId,
+                    star_count: content.price,
+                    media: media,
+                    ...options
+                });
+            } catch (apiError) {
+                // If callApi fails, try direct method if available
+                if (typeof ctx.telegram.sendPaidMedia === 'function') {
+                    await ctx.telegram.sendPaidMedia(
+                        chatId,
+                        content.price,
+                        media,
+                        options
+                    );
+                } else {
+                    throw apiError;
+                }
+            }
+
+            console.log(`[${userId}] 💰 Sent paid media: ${content.title} for ${content.price} stars`);
+
+            await FirebaseService.saveChatMessage(userId, "assistant", `Sent paid ${content.type}: ${content.title}`, {
+                fileUrl: content.fileUrl,
+                mediaType: content.type,
+                type: content.type,
+                price: content.price,
+                isPaidMedia: true
             });
 
-            await FirebaseService.saveChatMessage(userId, "assistant", content.title || "Sent photo", {
-                fileUrl: content.fileUrl,
-                mediaType: "photo",
-                type: "photo"
-            });
+        } catch (error) {
+            console.error(`[${userId}] Error sending paid media:`, error);
+            await ctx.reply("Sorry babe, there was an issue sending that content... try again? 😅");
         }
     }
 
