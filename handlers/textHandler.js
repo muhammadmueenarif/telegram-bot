@@ -3,9 +3,13 @@ const MemoryService = require("../services/memoryService");
 const FirebaseService = require("../services/firebaseService");
 const IntentClassifierService = require("../services/intentClassifierService");
 const ContentMatcherService = require("../services/contentMatcherService");
+const ElevenLabsService = require("../services/elevenlabsService");
 const { getPersona } = require("../utils/constants");
 const { randomDelay } = require("../utils/helpers");
 const { MINI_APP_URL } = require("../config");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 class TextHandler {
     constructor(openaiService, memoryService) {
@@ -13,6 +17,37 @@ class TextHandler {
         this.memoryService = memoryService;
         this.intentClassifier = new IntentClassifierService();
         this.contentMatcher = new ContentMatcherService();
+        this.elevenlabsService = new ElevenLabsService();
+        // Track recently sent content to prevent immediate repetition
+        this.recentlySent = new Map(); // userId -> {contentId, timestamp}
+        // Track if user has received intro messages to avoid repetition
+        this.hasReceivedIntro = new Set(); // Set of userIds who received the paid content intro
+    }
+
+    isRecentlySent(userId, contentId) {
+        const key = `${userId}_${contentId}`;
+        const recent = this.recentlySent.get(key);
+        if (!recent) return false;
+
+        // Consider content "recently sent" if sent within last 5 minutes
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        return recent.timestamp > fiveMinutesAgo;
+    }
+
+    markAsSent(userId, contentId) {
+        const key = `${userId}_${contentId}`;
+        this.recentlySent.set(key, {
+            contentId,
+            timestamp: Date.now()
+        });
+
+        // Clean up old entries (older than 10 minutes)
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        for (const [k, v] of this.recentlySent.entries()) {
+            if (v.timestamp < tenMinutesAgo) {
+                this.recentlySent.delete(k);
+            }
+        }
     }
 
     async handleTextMessage(ctx) {
@@ -57,6 +92,10 @@ class TextHandler {
         switch (intent.action) {
             case "greeting":
                 await this.handleGreeting(ctx, userId, userMessage);
+                break;
+
+            case "request_voice_note":
+                await this.handleVoiceNoteRequest(ctx, userId, userMessage);
                 break;
 
             case "request_free_content":
@@ -128,6 +167,62 @@ class TextHandler {
         await ctx.reply(response);
     }
 
+    async handleVoiceNoteRequest(ctx, userId, userMessage) {
+        try {
+            console.log(`[${userId}] 🎤 User requested voice note`);
+
+            // Add user message to memory
+            const lastMessage = this.memoryService.userMemory[userId][this.memoryService.userMemory[userId].length - 1];
+            const isDuplicate = lastMessage && lastMessage.content === userMessage && lastMessage.role === "user";
+
+            if (!isDuplicate) {
+                this.memoryService.addMessage(userId, "user", userMessage);
+            }
+
+            // Get AI response using last 20 messages for context
+            const persona = getPersona();
+            const allMessages = this.memoryService.getUserMessages(userId);
+            const last20Messages = allMessages.slice(-20);
+
+            console.log(`[${userId}] 📊 Using last ${last20Messages.length} messages for context`);
+
+            // Generate text response
+            const textResponse = await this.openaiService.getChatCompletion(persona, last20Messages);
+
+            console.log(`[${userId}] 🤖 Generated response: ${textResponse}`);
+
+            // Convert to speech using ElevenLabs
+            await ctx.sendChatAction("record_voice");
+            await randomDelay();
+
+            console.log(`[${userId}] 🎙️ Converting to speech with ElevenLabs...`);
+
+            const audioBuffer = await this.elevenlabsService.textToSpeech(textResponse);
+
+            // Save audio to temp file
+            const outputPath = path.join(os.tmpdir(), `voice_${userId}_${Date.now()}.mp3`);
+            fs.writeFileSync(outputPath, audioBuffer);
+
+            console.log(`[${userId}] 🎵 Sending voice message...`);
+
+            // Send voice message
+            await ctx.replyWithVoice({ source: fs.createReadStream(outputPath) });
+
+            // Save response to memory and Firebase
+            this.memoryService.addMessage(userId, "assistant", textResponse);
+            await FirebaseService.saveChatMessage(userId, "assistant", `[Voice message] ${textResponse}`);
+
+            // Clean up temp audio file
+            fs.unlinkSync(outputPath);
+
+            console.log(`[${userId}] ✅ Voice note sent successfully`);
+
+        } catch (error) {
+            console.error(`[${userId}] Error handling voice note request:`, error);
+            await ctx.reply("Sorry babe, I can't send voice messages right now... but I'm here for you! 💕");
+        }
+    }
+
     async handleFreeContentRequest(ctx, userId, userMessage, sentContentUrls) {
         try {
             // Get all content from Firebase
@@ -170,21 +265,29 @@ class TextHandler {
                 return;
             }
 
+            // Filter out recently sent content to avoid repetition
+            const notRecentlySent = unsentFreeContent.filter(c => !this.isRecentlySent(userId, c.id));
+            const availableContent = notRecentlySent.length > 0 ? notRecentlySent : unsentFreeContent;
+
             // Use ContentMatcher to find best matching free content
-            const matchResult = await this.contentMatcher.matchContent(userMessage, unsentFreeContent, true);
-            
+            const matchResult = await this.contentMatcher.matchContent(userMessage, availableContent, true);
+
             let contentToSend = null;
             if (matchResult.matched && matchResult.contentIds.length > 0) {
-                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, unsentFreeContent);
+                const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availableContent);
                 if (matchedContent.length > 0) {
-                    contentToSend = matchedContent[0];
+                    // Add randomization: pick randomly from matched content instead of always first
+                    contentToSend = matchedContent[Math.floor(Math.random() * matchedContent.length)];
                 }
             }
-            
+
             // Fallback to random if no match
             if (!contentToSend) {
-                contentToSend = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+                contentToSend = availableContent[Math.floor(Math.random() * availableContent.length)];
             }
+
+            // Mark as sent BEFORE sending to prevent race conditions
+            this.markAsSent(userId, contentToSend.id);
 
             // Send content immediately with a natural message
             const botReply = "Here you go babe! 😍💕";
@@ -260,8 +363,15 @@ class TextHandler {
                 return;
             }
 
-            // Send ONLY 1 random item
-            const randomContent = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+            // Filter out recently sent content to avoid repetition
+            const notRecentlySent = unsentFreeContent.filter(c => !this.isRecentlySent(userId, c.id));
+            const availableContent = notRecentlySent.length > 0 ? notRecentlySent : unsentFreeContent;
+
+            // Send ONLY 1 random item from available content
+            const randomContent = availableContent[Math.floor(Math.random() * availableContent.length)];
+
+            // Mark as sent BEFORE sending to prevent race conditions
+            this.markAsSent(userId, randomContent.id);
 
             const botReply = "Here you go babe! 😍💕";
             await ctx.reply(botReply);
@@ -293,7 +403,11 @@ class TextHandler {
             const unsentPaidContent = paidContent.filter(c => !sentContentUrls.has(c.fileUrl));
 
             // If all paid content has been sent, reset and use all paid content again
-            const availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+            let availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+
+            // Filter out recently sent content to avoid repetition
+            const notRecentlySent = availablePaidContent.filter(c => !this.isRecentlySent(userId, c.id));
+            availablePaidContent = notRecentlySent.length > 0 ? notRecentlySent : availablePaidContent;
 
             // Use ContentMatcher to find best matching paid content from unsent items
             const matchResult = await this.contentMatcher.matchContent(userMessage, availablePaidContent, false);
@@ -302,7 +416,8 @@ class TextHandler {
             if (matchResult.matched && matchResult.contentIds.length > 0) {
                 const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availablePaidContent);
                 if (matchedContent.length > 0) {
-                    contentToSend = matchedContent[0];
+                    // Add randomization: pick randomly from matched content
+                    contentToSend = matchedContent[Math.floor(Math.random() * matchedContent.length)];
                 }
             }
 
@@ -311,11 +426,26 @@ class TextHandler {
                 contentToSend = availablePaidContent[Math.floor(Math.random() * availablePaidContent.length)];
             }
 
+            // Mark as sent BEFORE sending to prevent race conditions
+            this.markAsSent(userId, contentToSend.id);
+
             // Send paid content as locked media with natural message
-            const botReply = "I have a whole collection of premium pics and videos for you. What kind of stuff are you looking for? 😘";
-            await ctx.reply(botReply);
-            await FirebaseService.saveChatMessage(userId, "assistant", botReply);
-            await randomDelay();
+            // Only send intro message if user hasn't received it before
+            if (!this.hasReceivedIntro.has(userId)) {
+                const botReply = "I have a whole collection of premium pics and videos for you. What kind of stuff are you looking for? 😘";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                await randomDelay();
+                // Mark that user has received the intro
+                this.hasReceivedIntro.add(userId);
+            } else {
+                // User already got intro, just send content with brief message
+                const botReply = "Here you go babe! 😘💕";
+                await ctx.reply(botReply);
+                await FirebaseService.saveChatMessage(userId, "assistant", botReply);
+                await randomDelay();
+            }
+
             await this.sendContent(ctx, userId, contentToSend);
 
         } catch (error) {
@@ -495,30 +625,38 @@ class TextHandler {
             const unsentFreeContent = freeContent.filter(c => !sentContentUrls.has(c.fileUrl));
             
             if (unsentFreeContent.length > 0) {
+                // Filter out recently sent content to avoid repetition
+                const notRecentlySent = unsentFreeContent.filter(c => !this.isRecentlySent(userId, c.id));
+                const availableContent = notRecentlySent.length > 0 ? notRecentlySent : unsentFreeContent;
+
                 // Use ContentMatcher to find best match
-                const matchResult = await this.contentMatcher.matchContent(userMessage, unsentFreeContent, true);
+                const matchResult = await this.contentMatcher.matchContent(userMessage, availableContent, true);
                 let contentToSend = null;
-                
+
                 if (matchResult.matched && matchResult.contentIds.length > 0) {
-                    const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, unsentFreeContent);
+                    const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availableContent);
                     if (matchedContent.length > 0) {
-                        contentToSend = matchedContent[0];
+                        // Add randomization: pick randomly from matched content
+                        contentToSend = matchedContent[Math.floor(Math.random() * matchedContent.length)];
                     }
                 }
-                
+
                 if (!contentToSend) {
-                    contentToSend = unsentFreeContent[Math.floor(Math.random() * unsentFreeContent.length)];
+                    contentToSend = availableContent[Math.floor(Math.random() * availableContent.length)];
                 }
+
+                // Mark as sent BEFORE sending to prevent race conditions
+                this.markAsSent(userId, contentToSend.id);
 
                 // Send AI response first, then content
                 const persona = getPersona();
                 const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
                 const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
-                
+
                 this.memoryService.addMessage(userId, "assistant", response);
                 await FirebaseService.saveChatMessage(userId, "assistant", response);
                 await ctx.reply(response);
-                
+
                 await randomDelay();
                 await this.sendContent(ctx, userId, contentToSend);
                 return;
@@ -530,7 +668,11 @@ class TextHandler {
                     const unsentPaidContent = paidContent.filter(c => !sentContentUrls.has(c.fileUrl));
 
                     // If all paid content has been sent, reset and use all paid content again
-                    const availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+                    let availablePaidContent = unsentPaidContent.length > 0 ? unsentPaidContent : paidContent;
+
+                    // Filter out recently sent content to avoid repetition
+                    const notRecentlySent = availablePaidContent.filter(c => !this.isRecentlySent(userId, c.id));
+                    availablePaidContent = notRecentlySent.length > 0 ? notRecentlySent : availablePaidContent;
 
                     const matchResult = await this.contentMatcher.matchContent(userMessage, availablePaidContent, false);
                     let contentToSend = null;
@@ -538,13 +680,17 @@ class TextHandler {
                     if (matchResult.matched && matchResult.contentIds.length > 0) {
                         const matchedContent = this.contentMatcher.getContentByIds(matchResult.contentIds, availablePaidContent);
                         if (matchedContent.length > 0) {
-                            contentToSend = matchedContent[0];
+                            // Add randomization: pick randomly from matched content
+                            contentToSend = matchedContent[Math.floor(Math.random() * matchedContent.length)];
                         }
                     }
 
                     if (!contentToSend) {
                         contentToSend = availablePaidContent[Math.floor(Math.random() * availablePaidContent.length)];
                     }
+
+                    // Mark as sent BEFORE sending to prevent race conditions
+                    this.markAsSent(userId, contentToSend.id);
 
                     // Send AI response first, then locked content
                     const persona = getPersona();

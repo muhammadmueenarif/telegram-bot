@@ -42,9 +42,11 @@ AVAILABLE ACTIONS:
 7. "select_paid" - User wants paid content (says "special", "paid", "something special")
 8. "select_photo" - User wants photo (says "photo", "pic", "image", "picture")
 9. "select_video" - User wants video (says "video", "vid")
+10. "request_voice_note" - User explicitly asks for voice note/voice message/audio message
 
 INTENT DETECTION RULES:
 - Greetings: "hi", "hello", "hey", "what's up" → "greeting"
+- Voice note requests: "send voice", "voice note", "voice message", "audio message", "talk to me", "speak to me", "send me voice" → "request_voice_note"
 - User says "fun" or "just for fun" or "free" → "select_free"
 - User says "special" or "something special" or "paid" → "select_paid"
 - User says "photo" or "pic" or "picture" or "image" → "select_photo"

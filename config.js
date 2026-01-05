@@ -16,6 +16,8 @@ if (!process.env.OPENAI_API_KEY) {
 module.exports = {
     BOT_TOKEN: process.env.BOT_TOKEN,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+    ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID,
     MINI_APP_URL: process.env.MINI_APP_URL || "https://telegram-page-three.vercel.app", // Update with your mini app URL
     FIREBASE_CONFIG: {
         // Add your Firebase config here or import from firebaseConfig.js
