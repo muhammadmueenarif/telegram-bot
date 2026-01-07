@@ -5,7 +5,7 @@ const PaymentHandler = require("./handlers/paymentHandler");
 const TextHandler = require("./handlers/textHandler");
 const OpenAIService = require("./services/openaiService");
 const MemoryService = require("./services/memoryService");
-const { randomDelay } = require("./utils/helpers");
+const { randomDelay, replyDelay } = require("./utils/helpers");
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
@@ -184,8 +184,6 @@ class Bot {
 
                 // If voice note is less than 60 seconds, transcribe and reply with text
                 if (duration < 60) {
-                    await ctx.sendChatAction("typing");
-
                     try {
                         // Download the voice file
                         const fileLink = await ctx.telegram.getFileLink(voice.file_id);
@@ -243,23 +241,30 @@ class Bot {
 
                         console.log(`[${userId}] 🤖 Text response: ${textResponse}`);
 
-                        // Send text response (no voice conversion)
-                        await ctx.reply(textResponse);
-
                         // Save response to memory and Firebase
                         this.memoryService.addMessage(userId, "assistant", textResponse);
                         await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                        
+                        // Wait 1 minute before replying
+                        await replyDelay();
+                        
+                        // Show typing indicator right before replying
+                        await ctx.sendChatAction("typing");
+                        await randomDelay();
+                        
+                        // Send text response (no voice conversion)
+                        await ctx.reply(textResponse);
 
                     } catch (transcriptionError) {
                         console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
                         // Fallback to sending ring.mp3
-                        const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                        const audioPath = path.join(__dirname, "ring.mp3");
                         await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
                     }
                 } else {
                     // Voice note is 60+ seconds, just send ring.mp3
                     console.log(`[${userId}] Voice too long (${duration}s), sending ring.mp3`);
-                    const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                    const audioPath = path.join(__dirname, "ring.mp3");
                     await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
                 }
             } catch (error) {
@@ -276,8 +281,6 @@ class Bot {
 
                 console.log(`[${userId}] 📸 ===== PHOTO HANDLER TRIGGERED =====`);
                 console.log(`[${userId}] 📸 Photo received${caption ? ` with caption: ${caption}` : ''}`);
-
-                await ctx.sendChatAction("typing");
 
                 try {
                     // Get photo file link
@@ -322,12 +325,19 @@ class Bot {
 
                     console.log(`[${userId}] 🤖 Response: ${textResponse}`);
 
-                    // Send text response
-                    await ctx.reply(textResponse);
-
                     // Save response to memory and Firebase
                     this.memoryService.addMessage(userId, "assistant", textResponse);
                     await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                    
+                    // Wait 1 minute before replying
+                    await replyDelay();
+                    
+                    // Show typing indicator right before replying
+                    await ctx.sendChatAction("typing");
+                    await randomDelay();
+                    
+                    // Send text response
+                    await ctx.reply(textResponse);
 
                 } catch (visionError) {
                     console.error(`[${userId}] Error analyzing image:`, visionError);
@@ -354,8 +364,6 @@ class Bot {
                 // Check if it's an image
                 if (mimeType.startsWith("image/")) {
                     console.log(`[${userId}] 📸 Document is an image, analyzing...`);
-
-                    await ctx.sendChatAction("typing");
 
                     try {
                         // Get document file link
@@ -400,12 +408,19 @@ class Bot {
 
                         console.log(`[${userId}] 🤖 Response: ${textResponse}`);
 
-                        // Send text response
-                        await ctx.reply(textResponse);
-
                         // Save response to memory and Firebase
                         this.memoryService.addMessage(userId, "assistant", textResponse);
                         await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                        
+                        // Wait 1 minute before replying
+                        await replyDelay();
+                        
+                        // Show typing indicator right before replying
+                        await ctx.sendChatAction("typing");
+                        await randomDelay();
+                        
+                        // Send text response
+                        await ctx.reply(textResponse);
 
                     } catch (visionError) {
                         console.error(`[${userId}] Error analyzing image document:`, visionError);
@@ -436,7 +451,7 @@ class Bot {
         this.bot.on("audio", async (ctx) => {
             try {
                 console.log(`[${ctx.from.id}] 🎵 Audio file received, sending ring.mp3`);
-                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                const audioPath = path.join(__dirname, "ring.mp3");
                 await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
             } catch (error) {
                 console.error("Error sending voice:", error);
@@ -447,7 +462,7 @@ class Bot {
         this.bot.on("video", async (ctx) => {
             try {
                 console.log(`[${ctx.from.id}] 🎥 Video file received, sending ring.mp3`);
-                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                const audioPath = path.join(__dirname, "ring.mp3");
                 await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
             } catch (error) {
                 console.error("Error sending voice:", error);
@@ -579,12 +594,19 @@ class Bot {
 
                 console.log(`[${userId}] 🤖 Response: ${textResponse}`);
 
-                // Send text response
-                await ctx.reply(textResponse);
-
                 // Save response to memory and Firebase
                 this.memoryService.addMessage(userId, "assistant", textResponse);
                 await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                
+                // Wait 1 minute before replying
+                await replyDelay();
+                
+                // Show typing indicator right before replying
+                await ctx.sendChatAction("typing");
+                await randomDelay();
+                
+                // Send text response
+                await ctx.reply(textResponse);
 
             } catch (visionError) {
                 console.error(`[${userId}] Error analyzing image:`, visionError);
@@ -661,21 +683,28 @@ class Bot {
 
                     console.log(`[${userId}] 🤖 Text response: ${textResponse}`);
 
-                    // Send text response (no voice conversion)
-                    await ctx.reply(textResponse);
-
                     // Save response to memory and Firebase
                     this.memoryService.addMessage(userId, "assistant", textResponse);
                     await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                    
+                    // Wait 1 minute before replying
+                    await replyDelay();
+                    
+                    // Show typing indicator right before replying
+                    await ctx.sendChatAction("typing");
+                    await randomDelay();
+                    
+                    // Send text response (no voice conversion)
+                    await ctx.reply(textResponse);
 
                 } catch (transcriptionError) {
                     console.error(`[${userId}] Error transcribing voice:`, transcriptionError);
-                    const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                    const audioPath = path.join(__dirname, "ring.mp3");
                     await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
                 }
             } else {
                 console.log(`[${userId}] Voice too long (${duration}s), sending ring.mp3`);
-                const audioPath = "/Volumes/myexternal/TelegramsAiBot/ring.mp3";
+                const audioPath = path.join(__dirname, "ring.mp3");
                 await ctx.replyWithVoice({ source: fs.createReadStream(audioPath) });
             }
         } catch (error) {
@@ -732,12 +761,19 @@ class Bot {
 
                 console.log(`[${userId}] 🤖 Response: ${textResponse}`);
 
-                // Send text response
-                await ctx.reply(textResponse);
-
                 // Save response to memory and Firebase
                 this.memoryService.addMessage(userId, "assistant", textResponse);
                 await FirebaseService.saveChatMessage(userId, "assistant", textResponse);
+                
+                // Wait 1 minute before replying
+                await replyDelay();
+                
+                // Show typing indicator right before replying
+                await ctx.sendChatAction("typing");
+                await randomDelay();
+                
+                // Send text response
+                await ctx.reply(textResponse);
 
             } catch (visionError) {
                 console.error(`[${userId}] Error analyzing image document:`, visionError);

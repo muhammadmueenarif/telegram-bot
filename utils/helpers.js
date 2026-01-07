@@ -12,6 +12,15 @@ function randomDelay() {
     });
 }
 
+// 1 minute delay before replying (makes bot seem more human)
+function replyDelay() {
+    return new Promise((resolve) => {
+        const delay = 60 * 1000; // 1 minute = 60000 milliseconds
+        console.log(`⏳ Waiting 1 minute before replying...`);
+        setTimeout(resolve, delay);
+    });
+}
+
 // Handle different timestamp formats
 function parseTimestamp(data) {
     let timestamp;
@@ -51,5 +60,6 @@ function parseTimestamp(data) {
 module.exports = {
     estimateTokens,
     randomDelay,
+    replyDelay,
     parseTimestamp
 };

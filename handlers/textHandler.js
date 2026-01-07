@@ -5,7 +5,7 @@ const IntentClassifierService = require("../services/intentClassifierService");
 const ContentMatcherService = require("../services/contentMatcherService");
 const ElevenLabsService = require("../services/elevenlabsService");
 const { getPersona } = require("../utils/constants");
-const { randomDelay } = require("../utils/helpers");
+const { randomDelay, replyDelay } = require("../utils/helpers");
 const { MINI_APP_URL } = require("../config");
 const fs = require("fs");
 const path = require("path");
@@ -58,10 +58,6 @@ class TextHandler {
 
         // Save user message to Firebase
         await FirebaseService.saveChatMessage(userId, "user", userMessage);
-
-        // Show typing indicator
-        await ctx.sendChatAction("typing");
-        await randomDelay();
 
         // Get user context (history of what they've received)
         const sentContentUrls = await FirebaseService.getUserSentContentUrls(userId);
@@ -141,7 +137,13 @@ class TextHandler {
             console.log(`[${userId}] ⚠️ Duplicate message detected, skipping memory add`);
         }
 
-        const persona = getPersona();
+        // Check if this is the first message (no previous assistant messages)
+        const hasPreviousConversation = this.memoryService.userMemory[userId].some(m => m.role === "assistant");
+        const isFirstMessage = !hasPreviousConversation;
+        
+        console.log(`[${userId}] ${isFirstMessage ? '👋 FIRST MESSAGE - Will ask questions' : '💬 CONTINUING CONVERSATION'}`);
+
+        const persona = getPersona(isFirstMessage);
         const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 
         console.log(`[${userId}] 📝 Using persona for greeting response (length: ${persona.length} chars)`);
@@ -164,6 +166,14 @@ class TextHandler {
 
         this.memoryService.addMessage(userId, "assistant", response);
         await FirebaseService.saveChatMessage(userId, "assistant", response);
+        
+        // Wait 1 minute before replying
+        await replyDelay();
+        
+        // Show typing indicator right before replying
+        await ctx.sendChatAction("typing");
+        await randomDelay();
+        
         await ctx.reply(response);
     }
 
@@ -610,6 +620,12 @@ class TextHandler {
             console.log(`[${userId}] ⚠️ Duplicate message detected, skipping memory add`);
         }
 
+        // Check if this is the first message (no previous assistant messages)
+        const hasPreviousConversation = this.memoryService.userMemory[userId].some(m => m.role === "assistant");
+        const isFirstMessage = !hasPreviousConversation;
+        
+        console.log(`[${userId}] ${isFirstMessage ? '👋 FIRST MESSAGE - Will ask questions' : '💬 CONTINUING CONVERSATION'}`);
+
         // Check if user message contains content request keywords
         const contentKeywords = ['pic', 'photo', 'picture', 'image', 'video', 'vid', 'content', 'show me', 'send me', 'got any', 'let me see', 'want to see', 'premium', 'exclusive'];
         const lowerMessage = userMessage.toLowerCase();
@@ -649,12 +665,20 @@ class TextHandler {
                 this.markAsSent(userId, contentToSend.id);
 
                 // Send AI response first, then content
-                const persona = getPersona();
+                const persona = getPersona(isFirstMessage);
                 const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
                 const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
 
                 this.memoryService.addMessage(userId, "assistant", response);
                 await FirebaseService.saveChatMessage(userId, "assistant", response);
+                
+                // Wait 1 minute before replying
+                await replyDelay();
+                
+                // Show typing indicator right before replying
+                await ctx.sendChatAction("typing");
+                await randomDelay();
+                
                 await ctx.reply(response);
 
                 await randomDelay();
@@ -693,12 +717,16 @@ class TextHandler {
                     this.markAsSent(userId, contentToSend.id);
 
                     // Send AI response first, then locked content
-                    const persona = getPersona();
+                    const persona = getPersona(isFirstMessage);
                     const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
                     const response = await this.openaiService.getChatCompletion(persona, messagesToSend);
 
                     this.memoryService.addMessage(userId, "assistant", response);
                     await FirebaseService.saveChatMessage(userId, "assistant", response);
+                    
+                    // Wait 1 minute before replying
+                    await replyDelay();
+                    
                     await ctx.reply(response);
 
                     await randomDelay();
@@ -709,7 +737,7 @@ class TextHandler {
         }
 
         // Normal AI response flow
-        const persona = getPersona();
+        const persona = getPersona(isFirstMessage);
         const messagesToSend = this.memoryService.getMessagesWithinLimit(userId, persona);
 
         console.log(`[${userId}] 📊 Using ${messagesToSend.length} messages for context`);
@@ -732,6 +760,14 @@ class TextHandler {
 
         this.memoryService.addMessage(userId, "assistant", response);
         await FirebaseService.saveChatMessage(userId, "assistant", response);
+        
+        // Wait 1 minute before replying
+        await replyDelay();
+        
+        // Show typing indicator right before replying
+        await ctx.sendChatAction("typing");
+        await randomDelay();
+        
         await ctx.reply(response);
     }
 }
