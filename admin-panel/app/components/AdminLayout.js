@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "../context/AuthContext";
 import {
     LayoutDashboard,
     Image as ImageIcon,
@@ -11,12 +12,14 @@ import {
     MessageSquare,
     Menu,
     X,
-    Star
+    Star,
+    LogOut
 } from "lucide-react";
 
 export default function AdminLayout({ children }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const pathname = usePathname();
+    const { isLoggedIn, isLoading, logout } = useAuth();
 
     const navItems = [
         { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -26,6 +29,20 @@ export default function AdminLayout({ children }) {
         { name: "Users", href: "/users", icon: Users },
         { name: "Chats", href: "/chats", icon: MessageSquare }
     ];
+
+    // Show loading state
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
+
+    // If on login page or not logged in, just render children (login page handles its own layout)
+    if (pathname === "/login" || !isLoggedIn) {
+        return <>{children}</>;
+    }
 
     return (
         <div className="min-h-screen bg-white flex">
@@ -61,6 +78,17 @@ export default function AdminLayout({ children }) {
                         );
                     })}
                 </nav>
+
+                {/* Logout button at bottom */}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <button
+                        onClick={logout}
+                        className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                        <LogOut className="w-5 h-5 mr-3" />
+                        Logout
+                    </button>
+                </div>
             </aside>
 
             {/* Main Content */}

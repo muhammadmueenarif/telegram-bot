@@ -1,5 +1,6 @@
 import "./globals.css";
 import AdminLayout from "./components/AdminLayout";
+import { AuthProvider } from "./context/AuthContext";
 
 export const metadata = {
   title: "Bot Admin",
@@ -10,7 +11,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="antialiased">
-        <AdminLayout>{children}</AdminLayout>
+        <AuthProvider>
+          <AdminLayout>{children}</AdminLayout>
+        </AuthProvider>
       </body>
     </html>
   );
