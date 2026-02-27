@@ -1,4 +1,4 @@
-# Nyla Telegram Bot
+# Nyla Telegram Bot1
 
 A Telegram bot with AI chat capabilities, content management, and payment processing using Telegram Stars.
 
